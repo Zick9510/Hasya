@@ -182,7 +182,13 @@ Funciones
 
         Este es un error que no se exactamente como corregir, aunque espero que pronto se de la situación.
 
-Funciones Incorporadas
+Funciones Incorporadas sin retorno
+
+    1. Mostrar
+        Puede recibir múltiples argumentos y los imprimira en pantalla, cada argumento estará separado por un espacio y al final de la función se imprimira de manera
+        automática una nueva linea ("\n"). Esto no se puede cambiar, aunque en próximas actualizaciones espero poder añadir la posiblidad de hacero
+        
+Funciones Incorporadas con retorno
 
     1. Ingresar
         Puede recibir un argumento y lo imprimira en pantalla, luego esperara a que el usuario ingrese un texto y
