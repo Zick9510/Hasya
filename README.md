@@ -191,7 +191,7 @@ Funciones Incorporadas:
     2. Largo
         Su argumento es un <it> y devuelve su longitud
     
-    3. Reversed
+    3. Invertir
         Toma un <it> y lo revierte, dejando los últimos elementos como los primeros y viceversa
     
     4. Rango # No la película
