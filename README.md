@@ -42,7 +42,7 @@ Instrucciones
 
     1. Retorno
         En funciones, una vez que alcanza la linea del retorno, se reemplaza el valor del retorno 
-        por la llamada de la función
+        en la llamada de la función
     
     2. Ir a
         Selecciona una linea  a la cual ir, y el número de linea se actualiza a esa, y seguirá ejecutando desde ahí
