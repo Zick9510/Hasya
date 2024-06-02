@@ -21,6 +21,7 @@ Nota a tener en cuenta:
 
 
 Variables
+
     1. Para asignares un valor:
         <id> = <x>
 
@@ -32,6 +33,7 @@ Variables
     
 
 Instrucciones
+
     Una instrucción es una linea que le dicta a la computadora que hacer, por ejemplo:
         
         retorno <x>
@@ -66,6 +68,7 @@ Instrucciones
 
 
 Estructuras
+
     Una estructura es una instrucción que lleva a bloques identados
     
     1. Si
@@ -123,6 +126,7 @@ Estructuras
 
 
 Ciclos
+
     Un ciclo es una estructura que se ejecuta a si misma hasta determinada condición o cierto iterable
     
     1. Mientras
@@ -152,6 +156,7 @@ Ciclos
 
 
 Funciones
+
     Para definir una función, se utiliza la palabra clave def.
     Las funciones pueden recibir 0 o más argumentos.
     Las funciones pueden retornar un valor
@@ -178,6 +183,7 @@ Funciones
         Este es un error que no se exactamente como corregir, aunque espero que pronto se de la situación.
 
 Funciones Incorporadas:
+
     1. Ingresar
         Puede recibir un argumento y lo imprimira en pantalla, luego esperara a que el usuario ingrese un texto y
         presione enter para enviarlo
@@ -200,6 +206,7 @@ Funciones Incorporadas:
 
 
 Extras:
+
     Para las condiciones lógicas de los condicionales se pueden usar "y", "o" y "no" # también válido && || y ! respectivamente:
         x = 3
         si ! x == 2:
