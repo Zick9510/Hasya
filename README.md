@@ -182,7 +182,7 @@ Funciones
 
         Este es un error que no se exactamente como corregir, aunque espero que pronto se de la situación.
 
-Funciones Incorporadas:
+Funciones Incorporadas
 
     1. Ingresar
         Puede recibir un argumento y lo imprimira en pantalla, luego esperara a que el usuario ingrese un texto y
@@ -205,7 +205,7 @@ Funciones Incorporadas:
         el elemento con el cual rellenar todas las casillas
 
 
-Extras:
+Extras
 
     Para las condiciones lógicas de los condicionales se pueden usar "y", "o" y "no" # también válido && || y ! respectivamente:
         x = 3
