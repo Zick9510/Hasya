@@ -1,6 +1,6 @@
 # Hasya
 
-Hasya es un lenguaje de programación interpretado creado y fuertemente inspirado en Python
+Hasya es un lenguaje de programación interpretado, esta creado y fuertemente inspirado en Python
 
 Nota a tener en cuenta:
 
