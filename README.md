@@ -30,6 +30,7 @@ Variables:
     3. Las listas van entre corchetes y sus elementos separados por ","
         A. Se pueden operar con los elementos de una lista de la siguiente forma:
             <it>[<x>] # Donde <it> es el nombre de tu lista, y <x> la posición/índice del elemento en cuestión
+            y se comienza a contar desde el 0, y termina en n - 1, donde n es el largo del iterable
         
         B. Se pueden reasignar los elementos de una lista aplicando el concepto anterior, agregando un igual y luego el 
             nuevo valor
