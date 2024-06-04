@@ -1,7 +1,3 @@
-# Hasya
-
-Hasya es un lenguaje de programación interpretado, esta creado y fuertemente inspirado en Python
-
 Nota a tener en cuenta:
 
     Para ejecutar un archivo de Hasya (.hsy) el archivo deberá estar en la misma carpeta que el archivo Re_Hasya.py, luego
@@ -20,30 +16,45 @@ Nota a tener en cuenta:
     similar, como los comentarios simples, aunque los multilinea van #/ comentario /#
 
 
-Variables
+
+### DOCUMENTACIÓN
+
+
+Variables:
 
     1. Para asignares un valor:
-        <id> = <x>
+    <id> = <x>
 
     2. Se pueden operar las variables entre si y reasignar sus valores.
 
     3. Las listas van entre corchetes y sus elementos separados por ","
+        A. Se pueden operar con los elementos de una lista de la siguiente forma:
+            <it>[<x>] # Donde <it> es el nombre de tu lista, y <x> la posición/índice del elemento en cuestión
+        
+        B. Se pueden reasignar los elementos de una lista aplicando el concepto anterior, agregando un igual y luego el 
+            nuevo valor
+        
+        C. Si, una lista puede contener listas y otros tipos de variables
 
-    4. Las cadenas de texto o strings, van entre comillas simples "'"
-    
 
-Instrucciones
+
+    4. Las cadenas de texto o strings, van entre comillas simples "'" # Próximamente se podrán usar las comillas dobles '"'
+        A. Al igual que las listas, se pueden obtener los caracteres de una cadena utilizando <it>[<x>]
+
+        B. No se pueden reasignar los elementos de una cadena # Aunque es probable que se vea esta funcionalidad
+
+Instrucciones:
 
     Una instrucción es una linea que le dicta a la computadora que hacer, por ejemplo:
-        
-        retorno <x>
-        
-        ir a <x>
+    
+    retorno <x>
+    
+    ir a <x>
 
     1. Retorno
         En funciones, una vez que alcanza la linea del retorno, se reemplaza el valor del retorno 
         en la llamada de la función
-    
+
     2. Ir a
         Selecciona una linea  a la cual ir, y el número de linea se actualiza a esa, y seguirá ejecutando desde ahí
         Advertencia: Esta instrucción puede fácilmente llevar a bucles indeseados y actualmente Hasya no cuenta con 
@@ -66,11 +77,26 @@ Instrucciones
     4. DETENER
         Literalmente detiene completamente la ejecución del programa
 
-
-Estructuras
+Estructuras:
 
     Una estructura es una instrucción que lleva a bloques identados
+
+    En las estructuras que funcionen con condiciones, llamadas condicionales, se pueden utilizar los siguientes símbolos para 
+    constituirlas:
     
+        == # "Es igual"
+        != # "Es diferente" 
+        >  # "Es mayor"
+        <  # "Es menor"
+        >= # "Es mayor o igual"
+        <= # "Es menor o igual"
+
+        && / y # "Esto y esto" -> Requiere que ambas condiciones sean verdadera
+        || / o # "Esto o esto" -> Con una condición verdadera basta
+        ! / no # "La negación de lo que sigue" -> La condición inicial debe ser falsa para dar un verdadero (y viceversa)
+
+
+
     1. Si
         Toma una condición y evalua el bloque identado si es verdadera
 
@@ -124,17 +150,16 @@ Estructuras
                 caso _:
                     mostrar('_')
 
-
-Ciclos
+Ciclos:
 
     Un ciclo es una estructura que se ejecuta a si misma hasta determinada condición o cierto iterable
-    
+
     1. Mientras
         mientras CONDICION:
             lineas a ejecutar
 
         Mientras CONDICION se verdadera, las lineas a ejecutar se van a ejecutar hasta que CONDICION sea falsa
-    
+
     2. Para
         para <id o ids> en <it>:
             lineas a ejecutar
@@ -145,7 +170,7 @@ Ciclos
         lista1 = [1, 2, 3, 4]
         para i en lista1: # lista1 se puede reemplazar por [1, 2, 3, 4] y se obtendrá el mismo resultado
             mostrar(i)
-    
+
     3. Cada
         Similar al ciclo para, solo que se reemplazará en <it> el valor de la/s variables <id/s>
         
@@ -154,12 +179,45 @@ Ciclos
         # Ya no nos encontramos en el ciclo cada
         mostrar(lista1)
 
+Funciones Incorporadas sin retorno:
 
-Funciones
+    1. Mostrar
+        Puede recibir múltiples argumentos y los imprimira en pantalla, cada argumento estará separado por un espacio y al final de la función se imprimira de manera
+        automática una nueva linea ("\n"). Esto no se puede cambiar, aunque en próximas actualizaciones espero poder añadir la posiblidad de hacero
+
+Funciones Incorporadas con retorno
+
+    1. Ingresar
+    Puede recibir un argumento y lo imprimira en pantalla, luego esperara a que el usuario ingrese un texto y
+    presione enter para enviarlo
+
+    2. Largo
+        Su argumento es un <it> y devuelve su longitud
+
+    3. Invertir
+        Toma un <it> y lo revierte, dejando los últimos elementos como los primeros y viceversa
+
+    4. Rango # No la película
+        Puede tomar hasta 3 argumentos y funciona de la siguiente manera:
+            Con 1 argumento devuelve una lista desde el 0 hasta ese <x>
+            Con 2 la lista comienza en el primero y sigue hasta el segundo (sin incluir el segundo)
+            Con 3 funciona similar al 2, pero el tercero indica cada cuantos elementos se saltea
+        
+    5. Matriz
+        Toma un <it> como primer argumento y un <x> como segundo, el primero marca las dimensiones y el segundo es
+        el elemento con el cual rellenar todas las casillas
+
+Funciones del usuario:
+
+    Las funciones son útiles cuando se quiere ejecutar determinada sección del código varias veces, a veces cambiando ciertos
+    valores, un ejemplo sería:
+
+    def f(x):
+        retorno x**2 # Aca x, el argumento, se eleva al cuadrado y se retorna para reemplazarse en el lugar en el que se llamo la función
 
     Para definir una función, se utiliza la palabra clave def.
-    Las funciones pueden recibir 0 o más argumentos.
-    Las funciones pueden retornar un valor
+    Las funciones pueden o no recibir argumentos. # Son parámetros con los cuales opera la función
+    Las funciones pueden retornar un valor. # Próximamente se va a poder retornar varios valores al mismo tiempo
 
     def suma(n1, n2):
         resultado = n1 + n2
@@ -181,45 +239,3 @@ Funciones
             # Para este punto del código, h vale 2, no 3
 
         Este es un error que no se exactamente como corregir, aunque espero que pronto se de la situación.
-
-Funciones Incorporadas sin retorno
-
-    1. Mostrar
-        Puede recibir múltiples argumentos y los imprimira en pantalla, cada argumento estará separado por un espacio y al final de la función se imprimira de manera
-        automática una nueva linea ("\n"). Esto no se puede cambiar, aunque en próximas actualizaciones espero poder añadir la posiblidad de hacero
-        
-Funciones Incorporadas con retorno
-
-    1. Ingresar
-        Puede recibir un argumento y lo imprimira en pantalla, luego esperara a que el usuario ingrese un texto y
-        presione enter para enviarlo
-
-    2. Largo
-        Su argumento es un <it> y devuelve su longitud
-    
-    3. Invertir
-        Toma un <it> y lo revierte, dejando los últimos elementos como los primeros y viceversa
-    
-    4. Rango # No la película
-        Puede tomar hasta 3 argumentos y funciona de la siguiente manera:
-            Con 1 argumento devuelve una lista desde el 0 hasta ese <x>
-            Con 2 la lista comienza en el primero y sigue hasta el segundo (sin incluir el segundo)
-            Con 3 funciona similar al 2, pero el tercero indica cada cuantos elementos se saltea
-        
-    5. Matriz
-        Toma un <it> como primer argumento y un <x> como segundo, el primero marca las dimensiones y el segundo es
-        el elemento con el cual rellenar todas las casillas
-
-
-Extras
-
-    Para las condiciones lógicas de los condicionales se pueden usar "y", "o" y "no" # también válido && || y ! respectivamente:
-        x = 3
-        si ! x == 2:
-            mostrar('yei')
-
-    Para obtener un elemento de una lista lis:
-        
-        lis[Índice del elemento]
-
-        Tener en cuenta que se empieza a contar desde el indice 0 y termina en n-1, siendo n la longitud de la lista
