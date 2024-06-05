@@ -23,7 +23,24 @@ Nota a tener en cuenta:
 Variables:
 
     1. Para asignares un valor:
-    <id> = <x>
+        A. <id> = <x>
+
+        B. Es posible separar múltiples <id> entre = para asignarles a todos el mismo valor <x>
+    
+        C. Es posible separar múltiples <id> entre cada signo igual para asignar secuencias de valores: # Se separan con ","
+            
+            a, b, c = d, e, f = 1, 2, 3 
+
+            # Es como si se asignasen "de a pares", el primero con el primero, y siguiendo
+            # a = d = 1, b = e = 2 y c = f = 3
+        
+        D. Se considera que una variable es verdadera cuando:
+
+            a. Si es un número no nulo (distinto de 0)
+
+            b. Si es una lista contiene al menos un elemento
+
+            c. Si es una cadena contiene al menos un caracter (cualquiera, incluido el espacio "' '")
 
     2. Se pueden operar las variables entre si y reasignar sus valores.
 
@@ -161,7 +178,33 @@ Ciclos:
 
         Mientras CONDICION se verdadera, las lineas a ejecutar se van a ejecutar hasta que CONDICION sea falsa
 
-    2. Para
+    2. Hace Mientras
+
+        hace mientras CONDICION:
+            lineas a ejecutar
+        
+        Similar al ciclo mientras, pero primero ejecutará sus lineas sin evaluar la condición, luego se comporta como un
+        ciclo mientras común y corriente
+
+        Ejemplo:
+        
+        i = 0
+        hace mientras i == 1:
+            mostrar('i vale:', i)
+            i += 1 # i = i + 1
+
+        # Eso es reemplazable por 
+
+        i = 0
+        mostrar('i vale:', i)
+        i += 1
+        mientras i == 1:
+            mostrar('i vale:', i)
+            i += 1
+
+        # Nótese las similitudes
+
+    3. Para
         para <id o ids> en <it>:
             lineas a ejecutar
         
@@ -172,7 +215,7 @@ Ciclos:
         para i en lista1: # lista1 se puede reemplazar por [1, 2, 3, 4] y se obtendrá el mismo resultado
             mostrar(i)
 
-    3. Cada
+    4. Cada
         Similar al ciclo para, solo que se reemplazará en <it> el valor de la/s variables <id/s>
         
         cada i en lista1:
@@ -207,6 +250,13 @@ Funciones Incorporadas con retorno
     5. Matriz
         Toma un <it> como primer argumento y un <x> como segundo, el primero marca las dimensiones y el segundo es
         el elemento con el cual rellenar todas las casillas
+    
+    6. Enumerar
+        Su argumento es un <it> y devuelve una lista de listas (o parejas) tales que el primer elemento de la pareja
+        indica el índice del segundo elemento de la pareja, la lista general está ordenada según los indices de menor a mayor
+    
+    7. Todos
+        Ingresa un <it> como argumento y devuelve 1 si todos sus elementos son verdaderos, devuelve 0 si alguno es falso
 
 Funciones del usuario:
 
