@@ -142,7 +142,9 @@ Estructuras:
 
         sino:
             otras otras lineas a ejecutar
-
+            
+        Este mismo pensamiento se puede aplicar al ciclo mientras, y al ciclo para, pero utilizando la instrucción "salir"
+        
     Las estructuras sino si y sino son opcionales
 
     4. Capta y caso
