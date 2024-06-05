@@ -1,7 +1,6 @@
 Nota a tener en cuenta:
 
-    Para ejecutar un archivo de Hasya (.hsy) el archivo deberá estar en la misma carpeta que el archivo Re_Hasya.py, luego
-    en la terminal tendran que escribir python Ruta\Re_Hasya.py Ruta\TuArchivo.hsy.
+    Para ejecutar un archivo de Hasya (.hsy) el archivo deberá escribir en la terminal python Ruta\Al\Main\Re_Hasya.py Ruta\A\TuArchivo.hsy.
 
     <id>: Identificador
     <vd> o <valor>: Valor
