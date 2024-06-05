@@ -64,6 +64,7 @@ toke = {
     'para': 'for',
     'cada': 'foreach',
 
+    'hace': 'do',
     'mientras': 'while',
 
     'si': 'if',
@@ -87,6 +88,7 @@ toke = {
     'ir a': 'goto',
 
     'retorno': 'return',
+    'retorna': 'return',
 
     'DETENER': 'HALT',
     
