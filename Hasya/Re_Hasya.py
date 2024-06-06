@@ -373,9 +373,10 @@ def clasificar(texto: str) -> list:
 
     identificadas = [] # identificadas = clasificado, pero no lo cambiemos porque me gusta como queda
     
-    rf'\[(?:\[*[^[\[]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]' # Este si
+    rf'\[(?:\[*[^[\[]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]' # <Ignora el asignador del medio
+    rf"\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]" # Este cumple con todo
 
-    patron = rf'(-*\d+\.?\d*|\[(?:\[*[^[\[]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]|["\'].*?["\']|\(.*?,\)|\{{.*?\}}|:{keys_de_funcR}|:{keys_de_tok}|[A-Za-z0-9_][A-Za-z_]*[\.A-Za-z_0-9]*|-*\d+\.?\d*j|Verdadero|Falso|Nada)'
+    patron = rf'(-*\d+\.?\d*|\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]|["\'].*?["\']|\(.*?,\)|\{{.*?\}}|:{keys_de_funcR}|:{keys_de_tok}|[A-Za-z0-9_][A-Za-z_]*[\.A-Za-z_0-9]*|-*\d+\.?\d*j|Verdadero|Falso|Nada)'
 
     coincidencias = re.findall(patron, texto)
     #print(f'{texto = }')
@@ -1385,6 +1386,7 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                     match clasificado[0][0]:
                         case 'def':
                             clasificado[1][2] = 'FUNCRETURN'
+                            KeysVars += [clasificado[1][1]]
                             ArgumentosDef = [clasificado[3:-2:2]]
                             #print(clasificado)
                             #print(ArgumentosDef)
@@ -1392,7 +1394,7 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                             fragmentoCodigo, AuxnLinea = seleccionarFragmento(LINEAS, nLinea)
                             #print(fragmentoCodigo, AuxnLinea, '<- fragmentoCodigo, AuxnLinea')
                             
-                            #guardar = (ArgumentosDef, nLinea, len(fragmentoCodigo)-1 + nLinea)
+                        
                             
                             #print(guardar, '<- guardar', clasificado[1][1])
                             FUNCIONES[clasificado[1][1]] = (ArgumentosDef, nLinea, len(fragmentoCodigo)-1 + nLinea)
@@ -1489,7 +1491,6 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                             break
 
                         case 'foreach':
-                            #print('pre eval FOREACH:')
                             #print(clasificado)
 
                             fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
@@ -1497,8 +1498,10 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
 
                             #print(variablesForeach, '<- variablesForeach')
 
-
-                            nombreIterable = clasificado[-2][1]
+                            for i in range(len(clasificado)-1, -1, -1):
+                                if clasificado[i][2] == 'VAR':
+                                    nombreIterable = clasificado[i][1]
+                                    break
 
                             #print(clasificado)
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
@@ -1530,12 +1533,12 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
 
                                         if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0):
                                             break
-                                        #print('VI:', VARIABLES[nombreIterable][0])
+                                        #print('VI:', VARIABLES, nombreIterable, j)
                                         #print(i, '<- i')
 
                                         reemplazar = []
                                         for j in range(len(variablesForeach)):
-                                            reemplazar.append(('CONST', VARIABLES[variablesForeach[j]][0], VARIABLES[variablesForeach[j]][1]))
+                                            reemplazar.append(['CONST', VARIABLES[variablesForeach[j]][0], VARIABLES[variablesForeach[j]][1]])
 
                                         VARIABLES[nombreIterable][0][i][1] = reemplazar.copy()
 
@@ -1798,6 +1801,7 @@ def SugerenciasWF(palabra, diccionario, corte: int = 10):
     for palabra_correcta in diccionario:
         distancia = Wagner_Fischer(palabra, palabra_correcta)
         sugerencias.append((palabra_correcta, distancia))
+
     sugerencias.sort(key=lambda x: x[1])
     i = 0
     pS = list(sugerencias[0])
@@ -1842,26 +1846,67 @@ def ExisteProximaLinea(LINEAS: list, nLinea: int) -> bool:
         #print('No existe prox')
         return False
     
-def ComprobarComentarios(clasificado: list) -> bool:
+def ComprobarComentarios(clasificado: list) -> int | bool:
     ...
-    """ if bien: return 0
-        else: return 6
+    """ 
+    if bien: return 0
+    else: return 6
     """
+def ComprobarNotacion(clasificado: list) -> int | bool:
+    ...
+    """
+    if bien: return 0
+    else return 6 
+    """
+    
+def ComprobarSintaxis(clasificado: list, Est: str | None = None) -> int | bool:
+    if Est == None: # Se analiza la una linea cualquiera
+        ...
+    elif Est == 0: # Detectar automáticamente
+        Est = clasificado[0][0]
+    else: # Ya nos dan la estructura 
+        pass
 
-def ComprobarSintaxis(clasificado: list) -> str | bool:
-    resumido = resumir(clasificado)
-    if re.match(r"defC\(C?(,C)*\):", resumido): # def
-        return False
-    elif re.match(r"gotoC", resumido): # goto
-        return False
-    elif re.match(r"(for|foreach)C(,C)*inC:", resumido): # for, foreach
-        return False
-    elif re.match(r"((do)?while|(el)?if)C:", resumido): # while elif if
-        return False
-    elif re.match(r"(match|case)C(,C)*:", resumido): # match case
-        return False
-    elif re.match(r"(break|pass|HALT|else:)", resumido): # break, pass, HALT, else
-        return False
+    if Est is None:
+        ...
+    else:
+        match Est:
+            case 'def':
+                ...
+            case 'return':
+                ...
+            case 'goto':
+                ...
+            case 'for':
+                ...
+            case 'foreach':
+                ...
+            case 'while':
+                ...
+            case 'do':
+                ...
+            case 'break':
+                ...
+            case 'if':
+                ...
+            case 'elif':
+                ...
+            case 'else':
+                ...
+            case 'match':
+                ...
+            case 'case':
+                ...
+            case 'pass':
+                ...
+            case 'import':
+                ...
+            case 'from':
+                ...
+            case 'HALT':
+                ...
+            case _:
+                ...
 
     return 1
 
@@ -1877,6 +1922,7 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
             case 2:
                 print(f"\"{clasificado[i][1]}\" No se encuentra definido.")
                 Mug = SugerenciasWF(clasificado[i][1], KeysVars)
+                #print(Mug)
                 Sug = Mug[0]
                 TipoSug = (clasificar(Sug))[0][2]
                 CertezaSug = Mug[1]
@@ -1915,16 +1961,17 @@ def ComprobarErrores(LINEAS: list, nLinea: int = 0) -> bool:
     while nLinea < len(LINEAS):
         clasificado = clasificar(LINEAS[nLinea])
         ERROR = ComprobarComentarios(clasificado)
+        ERROR = ComprobarNotacion(clasificado)
         if ERROR:
             return ERROR
         clasificado = depurarComentarios(clasificado)
+        clasificado = depurarNotacion(clasificado)
         ERROR = 0
         if ExisteProximaLinea(LINEAS, nLinea):
             #print(nLinea, LINEAS[nLinea])
             ERROR  = comprobarIdentacion(LINEAS, nLinea)
             #print(ERROR, '<- comprobar Idetancion')
 
-        #ERROR = ComprobarSintaxis(clasificado)
         if ERROR:
             ERROR = ServirErrores(ERROR, LINEAS, nLinea, 0)
             return ERROR
