@@ -1,6 +1,7 @@
 Nota a tener en cuenta:
 
-    Para ejecutar un archivo de Hasya (.hsy) el archivo deberá escribir en la terminal python Ruta\Al\Main\Re_Hasya.py Ruta\A\TuArchivo.hsy.
+    Para ejecutar un archivo de Hasya (.hsy) el archivo deberá estar en la misma carpeta que el archivo Re_Hasya.py, luego
+    en la terminal tendran que escribir python Ruta\Re_Hasya.py Ruta\TuArchivo.hsy.
 
     <id>: Identificador
     <vd> o <valor>: Valor
@@ -121,7 +122,7 @@ Estructuras:
             lineas a ejecutar
 
     2. Sino si
-        Si la condición del si es falsa, se evalua una nueva condición de manera similar, se pueden
+        Si la condición del "si" es falsa, se evalua una nueva condición de manera similar, se pueden
         concatenar tantos sino si como se desee
 
         si CONDICION FALSA: # Esto no se ejecuta
@@ -130,21 +131,24 @@ Estructuras:
             otras lineas a ejecutar
 
     3. Sino
-        Si todas las condiciones anteriores del si, y el/los sino si (si es que existen) son falsas, se ejecutará 
+        Si todas las condiciones anteriores del "si", y el/los "sino si" (si es que existen) son falsas, se ejecutará 
         el proximo bloque identado
 
         si CONDICION FALSA: # Esto no se ejecuta
             lineas a ejecutar
 
-        sino si CONDICION FALSA: # Esto tampoco
+        sino si OTRA CONDICION FALSA: # Esto tampoco
             otras lineas a ejecutar
 
-        sino:
+        sino: # No lleva condición
             otras otras lineas a ejecutar
-            
-        Este mismo pensamiento se puede aplicar al ciclo mientras, y al ciclo para, pero utilizando la instrucción "salir"
-        
-    Las estructuras sino si y sino son opcionales
+
+        Este mismo pensamiento se puede aplicar a los ciclos, pero utilizando la instrucción "salir",
+        es decir, si se utiliza la instrucción "salir", el bloque "sino" no se va a ejecutar
+        # Se puede pensar el bloque "sino" después de un ciclo como:
+        "Si no usasate salir, hace esto: "
+
+    Las estructuras "sino si" y "sino" son opcionales
 
     4. Capta y caso
         Capta toma una o más variables como entrada y compara los casos, en el momento en que uno coincida, se ejecutara 
@@ -162,10 +166,13 @@ Estructuras:
             capta a, b:
                 caso 2, 2:
                     mostrar(2, 2)
+
                 caso 1, 3:
-                    mostrar(1, 3)
-                caso 1, _:
-                    mostrar(1, '_')
+                    mostrar(1, 3) # Si a vale 1 este bloque se ejecutaría
+
+                caso 1, _: # Si esto en su lugar fuese "caso 2, _:" sería el que se ejecuta
+                    mostrar(1, '_') 
+
                 caso _:
                     mostrar('_')
 
@@ -224,11 +231,16 @@ Ciclos:
         # Ya no nos encontramos en el ciclo cada
         mostrar(lista1)
 
+        Nota:
+            Este ciclo esta pensado para iterarse sobre un <it> y modificar sus valores, con lo cual no es correcto
+            usar funciones que modifiquen el iterable o creen uno nuevo, como "enumerar" o "rango" y/o similares.
+            Tampoco esta permitido pasar como <it> un argumento diferente de una variable, por la misma razón.
+
 Funciones Incorporadas sin retorno:
 
     1. Mostrar
         Puede recibir múltiples argumentos y los imprimira en pantalla, cada argumento estará separado por un espacio y al final de la función se imprimira de manera
-        automática una nueva linea ("\n"). Esto no se puede cambiar, aunque en próximas actualizaciones espero poder añadir la posiblidad de hacero
+        automática una nueva linea ("\n"). # Esto no se puede cambiar, aunque en próximas actualizaciones espero poder añadir la posiblidad de hacero
 
 Funciones Incorporadas con retorno
 
@@ -265,20 +277,21 @@ Funciones del usuario:
     valores, un ejemplo sería:
 
     def f(x):
+        # Aca podes poner más cosas, las funciones pueden tener más lineas 
         retorno x**2 # Aca x, el argumento, se eleva al cuadrado y se retorna para reemplazarse en el lugar en el que se llamo la función
 
     Para definir una función, se utiliza la palabra clave def.
     Las funciones pueden o no recibir argumentos. # Son parámetros con los cuales opera la función
-    Las funciones pueden retornar un valor. # Próximamente se va a poder retornar varios valores al mismo tiempo
+    Las funciones pueden retornar valores. # Son valores que se reemplazan en el lugar donde se llamó la función
 
     def suma(n1, n2):
         resultado = n1 + n2
         retorno resultado
 
-    mostrar(suma(3, 4)) # En la terminal veríamos un 7
+    mostrar(suma(3, 4)) # En la terminal veríamos un 7, ya que "suma(3, 4)" se reemplaza con el retorno, que en este caso es 7
 
     Advertencia:
-        Al llamar a una función, reescribira el valor de sus argumentos según los valore que le
+        Al llamar a una función, reescribira el valor de sus argumentos según los valores que le
         pasemos:
             h = 3
 
@@ -290,4 +303,15 @@ Funciones del usuario:
 
             # Para este punto del código, h vale 2, no 3
 
-        Este es un error que no se exactamente como corregir, aunque espero que pronto se de la situación.
+        Próximamente se va a corregir este error
+
+Otra nota a tener en cuenta:
+
+    Generalmente, Hasya "sabe" interpretar ciertas secciones del código al favor del programador, por ejemplo, si
+    se tiene una función que retorna 3 valores y se procede así:
+
+    a, b = FuncionQueRetorna3Valores()
+
+    El tercer valor será descartado, y el primer y segundo valor serán asignados. Esta forma de operar es posible, pero
+    hay que tener bastante cuidado al usarla, aunque se espera que sea completamente viable y natural usarla para las 
+    próximas versiones. Cabe aclarar que esto de asignar menos valores de los que debería funciona en ciertas áreas.
