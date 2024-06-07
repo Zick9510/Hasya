@@ -373,7 +373,6 @@ def clasificar(texto: str) -> list:
 
     identificadas = [] # identificadas = clasificado, pero no lo cambiemos porque me gusta como queda
     
-    rf'\[(?:\[*[^[\[]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]' # <Ignora el asignador del medio
     rf"\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]" # Este cumple con todo
 
     patron = rf'(-*\d+\.?\d*|\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]|["\'].*?["\']|\(.*?,\)|\{{.*?\}}|:{keys_de_funcR}|:{keys_de_tok}|[A-Za-z0-9_][A-Za-z_]*[\.A-Za-z_0-9]*|-*\d+\.?\d*j|Verdadero|Falso|Nada)'
@@ -661,10 +660,25 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
                         k = 0
                         copiaclasificado[i] = ['CONST', 1, 'int']
                         while k < len(copiaclasificado[i+2][1]):
-                            if not copiaclasificado[k][1]:
+                            if not copiaclasificado[i+2][1][k][1]:
                                 copiaclasificado[i] = ['CONST', 0, 'int']
                                 break
                             k += 1
+                    
+                    case 'any':
+                        k = 0
+                        copiaclasificado[i] = ['CONST', 0, 'int']
+                        while k < len(copiaclasificado[i+2][1]):
+                            if copiaclasificado[i+2][1][k][1]:
+                                copiaclasificado[i] = ['CONST', 1, 'int']
+                                break
+                            k += 1
+                    
+                    case 'relu':
+                        if copiaclasificado[i+2][1] > 0:
+                            copiaclasificado[i] = copiaclasificado[i+2].copy()
+                        else: 
+                            copiaclasificado[i] = ['CONST', 0, 'int']
                 
             eliminar.append((i+1, j+1)) # Se agregan los índices desde el ( hasta el ) para después eliminarlos
             i = j + 1# i Se actualiza para valer el indice donde esta el ) de la función que se evaluo
@@ -1444,51 +1458,91 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                             #print(fragmentoCodigo)
                             if len(variablesFor) >= 2:
                                 if iterable[2] == 'list':
-                                    for i, variable in enumerate(iterable[1]): # variable = (('CONST', bla bla, 'iterable'), ('CONST', bla bla, 'iterable'))
-                                        #print(VARIABLES)
-                                        #print(variable, '<- variable')
-                                        #print(i, '<- i')
-                                        for j in range(len(variablesFor)): 
-                                            #print(variable[1], '<- variable[1]')
-                                            #print(j, '<- j')
-
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
+                                        for j in range(len(variablesFor)):
                                             VARIABLES[variablesFor[j]] = (variable[1][j][1], variable[1][j][2])
-                                            #print('VAR->', VARIABLES[variablesFor[j]])
-
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea=0):
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
                                             break
+                                        else:
+                                            i += 1
 
+                                elif iterable[2] == 'str':
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
+                                        for j in range(len(variablesFor)):
+                                            VARIABLES[variablesFor[j]] = (variable[1][j][1], 'str')
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
+                                            break
+                                        else:
+                                            i += 1
                                 else:
-                                    for variable in iterable[1]:
-                                        #print(VARIABLES)
-                                        #print(variable, '<- variable')
-                                        for i in range(len(variablesFor)):
-                                            #print(i)
-                                            VARIABLES[variablesFor[i]] = (variable[i][1], variable[i][2])
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0):
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
+                                        for j in range(len(variablesFor)):
+                                            VARIABLES[variablesFor[j]] = (variable[1][j][1], variable[1][j][2])
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
                                             break
+                                        else:
+                                            i += 1
 
                             else:
                                 if iterable[2] == 'list':
-                                    for variable in iterable[1]:
-                                        #print(VARIABLES)
-                                        #print(variable, '<- variable')
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
                                         VARIABLES[variablesFor[0]] = (variable[1], variable[2])
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
+                                            break
+                                        else:
+                                            i += 1
 
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0):
-                                            break
                                 elif iterable[2] == 'str':
-                                    for variable in iterable:
-                                        VARIABLES[variablesFor[0]] = (variable, 'str')
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0):
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
+                                        VARIABLES[variablesFor[0]] = (variable[1], 'str')
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
                                             break
+                                        else:
+                                            i += 1
+
                                 else:
-                                    for variable in iterable[1]:
-                                        #print(VARIABLES)
-                                        print(variable, '<- variable')
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
                                         VARIABLES[variablesFor[0]] = (variable[1], variable[2])
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0):
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
                                             break
+                                        else:
+                                            i += 1
 
                         case 'foreach':
                             #print(clasificado)
@@ -1519,76 +1573,85 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                             #print(fragmentoCodigo)
                             if len(variablesForeach) >= 2:
                                 if iterable[2] == 'list':
-
-                                    for i, variable in enumerate(iterable[1]): 
-                                        #print(variable, '<- variable')
-
-                                        #print(i, '<- i')
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
                                         for j in range(len(variablesForeach)): 
-
-                                            #print(j, '<- j')
-
                                             VARIABLES[variablesForeach[j]] = (variable[1][j][1], variable[1][j][2])
-                                            #print('VAR ->', f'{variablesForeach[j]} : {VARIABLES[variablesForeach[j]]}')
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0):
+                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
+
+                                        VARIABLES[nombreIterable] = (iterable[1], 'list')
+
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
                                             break
-                                        #print('VI:', VARIABLES, nombreIterable, j)
-                                        #print(i, '<- i')
+                                        else:
+                                            i += 1
 
-                                        reemplazar = []
-                                        for j in range(len(variablesForeach)):
-                                            reemplazar.append(['CONST', VARIABLES[variablesForeach[j]][0], VARIABLES[variablesForeach[j]][1]])
-
-                                        VARIABLES[nombreIterable][0][i][1] = reemplazar.copy()
-
+                                    #print(iterable)
 
                                 else:
-                                    for i, variable in enumerate(iterable[1]): 
-                                        #print(variable, '<- variable')
-
-                                        #print(i, '<- i')
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
                                         for j in range(len(variablesForeach)): 
-
-                                            #print(j, '<- j')
-
                                             VARIABLES[variablesForeach[j]] = (variable[1][j][1], variable[1][j][2])
-                                            #print('VAR ->', f'{variablesForeach[j]} : {VARIABLES[variablesForeach[j]]}')
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea=0):
+                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
+
+                                        VARIABLES[nombreIterable] = (iterable[1], iterable[2])
+
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
                                             break
-                                        #print('VI:', VARIABLES[nombreIterable][0])
-                                        #print(i, '<- i')
-
-                                        reemplazar = []
-                                        for j in range(len(variablesForeach)):
-                                            reemplazar.append(('CONST', VARIABLES[variablesForeach[j]][0], VARIABLES[variablesForeach[j]][1]))
-
-                                        VARIABLES[nombreIterable][0][i][1] = reemplazar.copy()
+                                        else:
+                                            i += 1
 
                             else:
                                 if iterable[2] == 'list':
-                                    for i, variable in enumerate(iterable[1]):
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
                                         VARIABLES[variablesForeach[0]] = (variable[1], variable[2])
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea=0):
+                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
                                             break
-                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0],VARIABLES[variablesForeach[0]][1])
+                                        else:
+                                            i += 1
+
                                     #print(iterable)
-                                    VARIABLES[nombreIterable] = (iterable[1], iterable[2])
+                                    VARIABLES[nombreIterable] = (iterable[1], 'list')
 
                                 elif iterable[2] == 'str':
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
+                                        VARIABLES[variablesForeach[0]] = (variable[1], 'str')
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+
+                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
+                                            break
+                                        else:
+                                            i += 1
                                     #print(iterable)
                                     #print(iterable[1])
-                                    for i, variable in enumerate(list(iterable[1])):
-                                        VARIABLES[variablesForeach[0]] = (variable, 'str')
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea=0):
-                                            break
                                         #print(iterable[1])
-                                        listaProvisoria = list(iterable[1])
-                                        #print(listaProvisoria)
-                                        listaProvisoria[i] = VARIABLES[variablesForeach[0]][0]
-                                        iterable = ('CONST', listaProvisoria, 'str')
 
                                     cadena = ''
                                     for i in iterable[1]:
@@ -1597,14 +1660,26 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                     VARIABLES[nombreIterable] = (str(iterable[1]), 'str')
 
                                 else:
-                                    for i, variable in enumerate(iterable[1]):
+                                    i = 0
+                                    while i < len(iterable[1]):
+                                        variable = iterable[1][i]
+                                        VARIABLES[variablesForeach[0]] = (variable[1], variable[2])
+                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+
+                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
+                                        if ultimaCondicion == 'c':
+                                            i += 1
+                                            ultimaCondicion = False
+                                        elif ultimaCondicion:
+                                            break
+                                        else:
+                                            i += 1
+                                    
                                         #print(VARIABLES)
                                         #print(variable, '<- variable')
-                                        VARIABLES[variablesForeach[0]] = (variable[1], variable[2])
 
-                                        if ultimaCondicion := ejecutarCodigo(fragmentoCodigo[1:], nLinea=0):
-                                            break
-                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0],VARIABLES[variablesForeach[0]][1])
+                                    VARIABLES[nombreIterable] = (iterable[1], iterable[2])
+                                        
                                     #print(iterable)
 
                         case 'while':
@@ -1630,6 +1705,9 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                             #print('BREAK')
                             #print(clasificado, '<- clasificado')
                             return True # not ultimaCondicion
+
+                        case 'continue':
+                            return 'c'
 
                         case 'if':
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
