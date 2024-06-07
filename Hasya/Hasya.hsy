@@ -1,4 +1,4 @@
-### Archivo destinado a mostrar las capacidades de Hasya (recomiendo igual leer README.md, ya que ahí se encuentra la documentación)
+### Archivo destinado a mostrar las capacidades de Hasya y ejecutar tu código # Recomiendo igual leer README.md, ya que ahí se encuentra la documentación
 
 ### ASIGNAR
 
@@ -44,6 +44,19 @@ para i, j en lis2:
 para i, j, k, l en lis2:
     mostrar(i, j, k, l)
 
+lis4 = [1, 2, 3, 4, 5, 6]
+para i en lis4:
+    si i == 4:
+        continuar
+    mostrar(i)
+
+
+para i en lis4:
+    si i == 6:
+        continuar
+    mostrar(i)
+sino:
+    mostrar('sino para')
 ### Cada
 
 para i en lis2:
@@ -57,6 +70,20 @@ cada i en lis3:
     i = i**2 - 5*i + 4
 
 mostrar(lis3)
+
+lis4 = [1, 2, 3, 4, 5, 6]
+cada i en lis4:
+    si i == 4:
+        continuar
+    mostrar(i)
+
+
+cada i en lis4:
+    si i == 6:
+        continuar
+    mostrar(i)
+sino:
+    mostrar('sino cada')
 
 ### Mientras
 
@@ -139,7 +166,11 @@ def func4(a, b):
     retorno a + b
 mostrar(func4(4, 5))
 
-### FUNCIONES INCORPORADAS
+### Funciones Incorporadas
+
+mostrar('ReLU:')
+para i en rango(-10, 10):
+    mostrar(i, '->', relu(i))
 
 nombre = ingresar('Ingrese nombre: ')
 mostrar('Ingrese apellido: ')
@@ -152,6 +183,12 @@ mostrar(largo(lis))
 mostrar(invertir(lis), '<- lista invertida')
 
 mostrar(rango(10), rango(3, 20), rango(4, 31, 4))
+
+mostrar(todos([1, 1, 0]))
+mostrar(todos([1, 1, 1]))
+
+mostrar(alguno([1, 1, 0]))
+mostrar(alguno([0, 0, 0]))
 
 ### LISTAS
 
@@ -181,18 +218,3 @@ mat = [[1, 2, 3], [4, 5, 6]]
 para i en rango(largo(mat)):
     para j en rango(largo(mat[0])):
         mostrar(mat[i][j])
-
-### IMPORTAR
-
-importar import1
-
-var1 = 30
-var2 = 40
-var3 = 50
-
-mostrar(var1, import1.var1)
-mostrar(var2, import1.var2)
-mostrar(var3, import1.var3)
-
-
-mostrar('Si ves esto, Hasya cumplio con todos los Tests')
