@@ -307,7 +307,7 @@ Funciones del usuario:
 
 Otra nota a tener en cuenta:
 
-    Generalmente, Hasya "sabe" interpretar ciertas secciones del código al favor del programador, por ejemplo, si
+    Generalmente, Hasya "sabe" interpretar ciertas secciones del código a favor del programador, por ejemplo, si
     se tiene una función que retorna 3 valores y se procede así:
 
     a, b = FuncionQueRetorna3Valores()
