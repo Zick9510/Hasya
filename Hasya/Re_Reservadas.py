@@ -119,6 +119,8 @@ funcionesReturn = {
     'matriz': 'matrix',
     'lista': 'list',
     'todos': 'all',
+    'alguno': 'any',
+    'relu': 'relu',
 
 }
 funcRet = sorted(funcionesReturn, key=len, reverse=True)
