@@ -271,6 +271,10 @@ Funciones Incorporadas con retorno
     7. Todos
         Ingresa un <it> como argumento y devuelve 1 si todos sus elementos son verdaderos, devuelve 0 si alguno es falso
 
+    8. Alguno
+        Ingresa un <it> y devuelve 1 si alguno de sus elementos es verdadero, devuelve 0 si todos son falsos
+        
+
 Funciones del usuario:
 
     Las funciones son útiles cuando se quiere ejecutar determinada sección del código varias veces, a veces cambiando ciertos
