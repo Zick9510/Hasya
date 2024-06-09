@@ -51,8 +51,6 @@ estructuras_primarias = { # Estructuras irreducibles
     (): 'LINEA_VACIA',
     ('CONST',): 'CONSTANTE',
 
-    ('print', '(', 'CONST', ')',): 'MOSTRAR',
-
     ('CONST', '=', 'CONST',): 'ASIGNAR',
     ('CONST', 'CONST', '=', 'CONST',): 'ASIGNAR_ELEM',
 
@@ -375,7 +373,7 @@ def clasificar(texto: str) -> list:
     
     rf"\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]" # Este cumple con todo
 
-    patron = rf'(-*\d+\.?\d*|\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]|["\'].*?["\']|\(.*?,\)|\{{.*?\}}|:{keys_de_funcR}|:{keys_de_tok}|[A-Za-z0-9_][A-Za-z_]*[\.A-Za-z_0-9]*|-*\d+\.?\d*j|Verdadero|Falso|Nada)'
+    patron = rf'(\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]|-*\d+\.?\d*|:{keys_de_funcR}|:{keys_de_tok}|[A-Za-z0-9_][A-Za-z_]*[\.A-Za-z_0-9]*|["\'].*?["\']|\(.*?,\)|\{{.*?\}}|-*\d+\.?\d*j|Verdadero|Falso|Nada)'
 
     coincidencias = re.findall(patron, texto)
     #print(f'{texto = }')
@@ -522,25 +520,26 @@ def enFuncion(LINEAS: list, nLinea: int) -> bool:
 
     return nivel, nLinea+1
 
-def idenConjunto(clasificado: str) -> list:
-    i = 0
-    while i < len(clasificado):
-        ...
-
+def argAux(clasificado: list) -> list:
+    ...
+    
 def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
     #print(clasificado, '<- clasificado evalFuncionesR')
 
-    i = 0
-    parejas = asignarP(clasificado)
+    
+    
     copiaclasificado = clasificado.copy()
+    i = len(copiaclasificado) - 1
     #print(copiaclasificado)
     eliminar = []
-    while i < len(copiaclasificado):
-        #print(i, '<- i') 
-        if copiaclasificado[i][2] == 'FUNCRETURN':
+    while i >= 0:
+        #print(copiaclasificado, i, '<- copiaclasificado, i')
+        parejas = asignarP(copiaclasificado)
+        if copiaclasificado[i][2] in ('FUNC', 'FUNCRETURN', 'METD'):
             #print('data:')
             j = parejas[i+1]
-            #print(copiaclasificado, i, j, sep='\n')
+            #print(parejas)
+            #print(i, j, '<- i, j')
             seudoclasificado = copiaclasificado[i+2:j]
             #print(seudoclasificado, '<- seudoclasificado')
             copiaclasificado[i+2:j] = evalExpresiones(seudoclasificado, LINEAS)
@@ -548,148 +547,195 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
             parejas = asignarP(copiaclasificado)
             j = parejas[i+1] # j = indice donde se encuentra el ) de la función
             #print(copiaclasificado, i, '<- copiaclasificado, i')
-            
-            #print('FUNCIONES:', FUNCIONES)
-            if copiaclasificado[i][1] in FUNCIONES: # FUNCIONES contiene exclusivamente las funciones que haya definido el usuario
-                #print(copiaclasificado, i, '<- FUNCIONES')
+            #eliminar.append((i+1, j+1))
 
-                ArgumentosCall = []
-                for k in copiaclasificado[i+2:j:2]:
-                    ArgumentosCall += [k]
+            if copiaclasificado[i][2] == 'FUNCRETURN':
+                #print('FUNCIONES:', FUNCIONES)
+                if copiaclasificado[i][1] in FUNCIONES: # FUNCIONES contiene exclusivamente las funciones que haya definido el usuario
+                    #print(copiaclasificado, i, '<- FUNCIONES')
 
-                ArgumentosFunc = FUNCIONES[copiaclasificado[i][1]][0][0]
+                    ArgumentosCall = []
+                    for k in copiaclasificado[i+2:j:2]:
+                        ArgumentosCall += [k]
 
-                #print(ArgumentosCall, '<- ArgumentosCall')
-                #print(ArgumentosFunc, '<- ArgumentosFunc')
+                    ArgumentosFunc = FUNCIONES[copiaclasificado[i][1]][0][0]
 
-                for k in range(len(ArgumentosFunc)):
-                    VARIABLES[ArgumentosFunc[k][1]] = (ArgumentosCall[k][1], ArgumentosCall[k][2])
-                #print(VARIABLES)
-                #print(copiaclasificado, i)
-                #print(FUNCIONES, '<- FUNCIONES')
-                inicio = FUNCIONES[copiaclasificado[i][1]][1]
-                fin = FUNCIONES[copiaclasificado[i][1]][2]
-                #print(LINEAS, inicio+1, fin, '<- LINEAS, inicio, fin')
-                ejecuta, _ = seleccionarFragmento(LINEAS, inicio)
-                #print(ejecuta, '<- ejecuta')
-                #print(LINEAS[inicio:fin+2], '<- ejecuta')
-                #print(LINEAS, inicio)
-                
-                #sys.exit()
-                retorno = ejecutarCodigo(LINEAS, fin, nLinea=inicio+1)
-                #print(retorno, '<- retorno')
-                #print(retorno[::2])
-                if retorno == 0:
-                    copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
-                else:
-                    if len(retorno) == 1:
-                        copiaclasificado[i] = retorno[0]
+                    #print(ArgumentosCall, '<- ArgumentosCall')
+                    #print(ArgumentosFunc, '<- ArgumentosFunc')
+
+                    for k in range(len(ArgumentosFunc)):
+                        VARIABLES[ArgumentosFunc[k][1]] = (ArgumentosCall[k][1], ArgumentosCall[k][2])
+                    #print(VARIABLES)
+                    #print(copiaclasificado, i)
+                    #print(FUNCIONES, '<- FUNCIONES')
+                    inicio = FUNCIONES[copiaclasificado[i][1]][1]
+                    fin = FUNCIONES[copiaclasificado[i][1]][2]
+                    #print(LINEAS, inicio+1, fin, '<- LINEAS, inicio, fin')
+                    ejecuta, __ = seleccionarFragmento(LINEAS, inicio)
+                    #print(ejecuta, '<- ejecuta')
+                    #print(LINEAS[inicio:fin+2], '<- ejecuta')
+                    #print(LINEAS, inicio)
+                    
+                    #sys.exit()
+                    retorno = ejecutarCodigo(LINEAS, fin, nLinea=inicio+1)
+                    #print(retorno, '<- retorno')
+                    #print(retorno[::2])
+                    if retorno == 0:
+                        copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
                     else:
-                        for k in reversed(retorno):
-                            copiaclasificado.insert(i, k)
-                            
-                        j += len(retorno)
-                        i += len(retorno)
-                #print(copiaclasificado, i, '<- copiaclasificado, i')
+                        if len(retorno) == 1:
+                            copiaclasificado[i] = retorno[0]
+                        else:
+                            for k in reversed(retorno):
+                                copiaclasificado.insert(i, k)
+                                
+                            j += len(retorno)
+                            i += len(retorno)
+                    #print(copiaclasificado, i, '<- copiaclasificado, i')
 
-            else:
-                match copiaclasificado[i][0]:
-                    case 'input':
-                        if j - i == 2:
-                            copiaclasificado[i] = ['CONST', f'{input()}', 'str']
+                else:
+                    #print(copiaclasificado, i, 'pre match')
+                    match copiaclasificado[i][0]:
+                        case 'input':
+                            if j - i == 2:
+                                copiaclasificado[i] = ['CONST', f'{input()}', 'str']
 
-                        elif j - i == 3:
-                            copiaclasificado[i] = ['CONST', f'{input(copiaclasificado[i+2][1])}', 'str']
+                            elif j - i == 3:
+                                copiaclasificado[i] = ['CONST', f'{input(copiaclasificado[i+2][1])}', 'str']
 
-                    case 'len':
-                        copiaclasificado[i] = ['CONST', len(copiaclasificado[i+2][1]), 'int']
+                        case 'len':
+                            copiaclasificado[i] = ['CONST', len(copiaclasificado[i+2][1]), 'int']
+                            #print(copiaclasificado, i, 'post len')
 
-                    case 'reversed':
-                        copiaclasificado[i] = ['CONST', list(reversed(copiaclasificado[i+2][1])), copiaclasificado[i+2][2]]
+                        case 'reversed':
+                            copiaclasificado[i] = ['CONST', [k for k in copiaclasificado[i+2][1][::-1]], copiaclasificado[i+2][2]]
 
-                    case 'range':
-                        #print(copiaclasificado, j, i, '<- copiaclasificado, j, i')
-                        if j - i == 3:
-                            copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1])))))[0]
-                        elif j - i == 5:
-                            copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1]), int(copiaclasificado[i+4][1])))))[0]
+                        case 'range':
+                            #print(copiaclasificado, j, i, '<- copiaclasificado, j, i')
+                            if j - i == 3:
+                                copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1])))))[0]
+                            elif j - i == 5:
+                                copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1]), int(copiaclasificado[i+4][1])))))[0]
 
-                        elif j - i == 7:
-                            copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1]), int(copiaclasificado[i+4][1]), int(copiaclasificado[i+6][1])))))[0]
-                    
-                    case 'list':
-                        copiaclasificado[i] = clasificar(str(list(copiaclasificado[i+2][1])))[0]
-
-                    case 'matrix':
-                        # Argumentos:
-                        # Lista con dimensiones, rellenar con
+                            elif j - i == 7:
+                                copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1]), int(copiaclasificado[i+4][1]), int(copiaclasificado[i+6][1])))))[0]
                         
-                        dim = []
-                        for k in reversed(copiaclasificado[i+2][1]):
-                            dim.append(k[1])
-                        #print(copiaclasificado, i)
+                        case 'list':
+                            copiaclasificado[i] = clasificar(str(list(copiaclasificado[i+2][1])))[0]
 
-                        relleno = copiaclasificado[i+4][1]
+                        case 'matrix':
+                            # Argumentos:
+                            # Lista con dimensiones, rellenar con
+                            
+                            dim = []
+                            for k in reversed(copiaclasificado[i+2][1]):
+                                dim.append(k[1])
+                            #print(copiaclasificado, i)
 
-                        #print(relleno, dim, sep='\n')
-                        matriz = relleno
-                        for k in dim:
-                            matriz = [matriz] * k
+                            relleno = copiaclasificado[i+4][1]
 
-                        #print(clasificar(str(matriz)))
+                            #print(relleno, dim, sep='\n')
+                            matriz = relleno
+                            for k in dim:
+                                matriz = [matriz] * k
 
-                        copiaclasificado[i] = clasificar(str(matriz))[0]
-                        #print(clasificado, i)
+                            #print(clasificar(str(matriz)))
 
-                    case 'enumerate':
-                        #print(copiaclasificado, i)
-                        k = 0
-                        temp = []
+                            copiaclasificado[i] = clasificar(str(matriz))[0]
+                            #print(clasificado, i)
 
-                        while k < len(copiaclasificado[i+2][1]):
-                            temp += [['CONST', [['CONST', k, 'int'], copiaclasificado[i+2][1][k]], 'list']]
+                        case 'enumerate':
+                            #print(copiaclasificado, i)
+                            k = 0
+                            temp = []
 
-                            k += 1
-                        #print('temp:', temp)
+                            while k < len(copiaclasificado[i+2][1]):
+                                temp += [['CONST', [['CONST', k, 'int'], copiaclasificado[i+2][1][k]], 'list']]
 
-                        copiaclasificado[i] = ['CONST', temp, 'list']
-                        #print(copiaclasificado, i)
+                                k += 1
+                            #print('temp:', temp)
 
-                    case 'all':
-                        #print(copiaclasificado, i)
-                        k = 0
-                        copiaclasificado[i] = ['CONST', 1, 'int']
-                        while k < len(copiaclasificado[i+2][1]):
-                            if not copiaclasificado[i+2][1][k][1]:
-                                copiaclasificado[i] = ['CONST', 0, 'int']
-                                break
-                            k += 1
-                    
-                    case 'any':
-                        k = 0
-                        copiaclasificado[i] = ['CONST', 0, 'int']
-                        while k < len(copiaclasificado[i+2][1]):
-                            if copiaclasificado[i+2][1][k][1]:
-                                copiaclasificado[i] = ['CONST', 1, 'int']
-                                break
-                            k += 1
-                    
-                    case 'relu':
-                        if copiaclasificado[i+2][1] > 0:
-                            copiaclasificado[i] = copiaclasificado[i+2].copy()
-                        else: 
+                            copiaclasificado[i] = ['CONST', temp, 'list']
+                            #print(copiaclasificado, i)
+
+                        case 'all':
+                            #print(copiaclasificado, i)
+                            k = 0
+                            copiaclasificado[i] = ['CONST', 1, 'int']
+                            while k < len(copiaclasificado[i+2][1]):
+                                if not copiaclasificado[i+2][1][k][1]:
+                                    copiaclasificado[i] = ['CONST', 0, 'int']
+                                    break
+                                k += 1
+                        
+                        case 'any':
+                            k = 0
                             copiaclasificado[i] = ['CONST', 0, 'int']
-                
-            eliminar.append((i+1, j+1)) # Se agregan los índices desde el ( hasta el ) para después eliminarlos
-            i = j + 1# i Se actualiza para valer el indice donde esta el ) de la función que se evaluo
+                            while k < len(copiaclasificado[i+2][1]):
+                                if copiaclasificado[i+2][1][k][1]:
+                                    copiaclasificado[i] = ['CONST', 1, 'int']
+                                    break
+                                k += 1
+                        
+                        case 'relu':
+                            #print(copiaclasificado, i)
+                            if copiaclasificado[i+2][1] > 0:
+                                copiaclasificado[i] = copiaclasificado[i+2].copy()
+                            else: 
+                                copiaclasificado[i] = ['CONST', 0, 'int']
 
-        elif copiaclasificado[i][2] == 'METD':
-            ...
-        i += 1 # Y se le agrega 1
+            elif copiaclasificado[i][2] == 'FUNC':
+                match copiaclasificado[i][0]:
+                    case 'print':
+                        if j - i == 2:
+                            print() 
+                        else:
+                            for k in range(i+2, j):
+                                #print(copiaclasificado, k, '<- clasificado, k')
+                                match copiaclasificado[k][2]:
+                                    case 'str':
+                                        print(copiaclasificado[k][1], end=' ')
+                                    case 'int':
+                                        print(copiaclasificado[k][1], end=' ')
+                                    case 'float':
+                                        print(copiaclasificado[k][1], end=' ')
+                                    case 'complex':
+                                        print(copiaclasificado[k][1], end=' ')
+                                    case 'list':
+                                        print(imprimir_lista(copiaclasificado[k][1]), end=' ')
+                                    case 'bool':
+                                        print(copiaclasificado[k][1], end=' ')
+                                    case 'sintipo':
+                                        print(copiaclasificado[k][1], end=' ')
+                                    case 'TOK':
+                                        if copiaclasificado[k][1] not in ('(', ',', ')'):
+                                            print(copiaclasificado[k][1], end=' ')
+                                    case _:
+                                        #print(clasificado, j, '<- clasificado, j MOSTRAR')
+                                        ...
 
-    for i, j in reversed(eliminar): # Se elimina del final al principio para "borrar la basura"
+                        print()
+                        copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
+
+                    case 'help':
+                        if j - i == 2:
+                            ...
+                        elif j - i == 3:
+                            ...
+                        copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
+            elif copiaclasificado[i][2] == 'METD':
+                ...
+            #print(copiaclasificado, i, j, '<- data 2')
+            #del copiaclasificado[i+1:j+1]    
+            #print(copiaclasificado)
+            #i = j + 1
+            del copiaclasificado[i+1:j+1]
+            #eliminar.append((i+1, j+1)) # Se agregan los índices desde el ( hasta el ) para después eliminarlos
+        i -= 1 # Y se le resta 1
+
+    """for i, j in reversed(eliminar): # Se elimina del final al principio para "borrar la basura"
         #print(i, j)
-        del copiaclasificado[i:j]
+        del copiaclasificado[i:j]"""
 
     for i, j in enumerate(reversed(copiaclasificado)):
         if j == 'ELIMINAR':
@@ -743,12 +789,6 @@ def idenExpresiones(clasificado: list) -> list:
                 if i + 1 == len(clasificado):
                     break
                     # Esta es la última iteración del bucle y el elemento actual es un '(' o un ')' (normalmente)          
-
-            """ elif clasificado[i][2] in ('FUNC', 'METD', 'FUNCRETURN'):
-            #print('func, metd, o funcretrun', i)
-            if inicio is False:
-                inicio = i
-                fin = False"""
 
         elif clasificado[i][0] in comparadores:
             #print('comparadores', i)
@@ -810,7 +850,7 @@ def evalExpresiones(clasificado: list, LINEAS) -> list:
             j += 1
         #print(clasificado, i, '<- clasificado, i ***')
         
-        #print(f'{subexpresion = }')
+        print(f'{subexpresion = }')
         """
         Aca debería ir nuestra propia función para evaluar propiamente las expresiones
         """
@@ -1144,38 +1184,6 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
         case 'LINEA_VACIA':
             pass
 
-        case 'MOSTRAR':
-            #print('MOSTRAR:')
-            #print(clasificado)
-            if len(clasificado) == 3:
-                    print() 
-            else:
-                for j in range(2, len(clasificado)):
-                    #print(clasificado, j, '<- clasificado, j')
-                    match clasificado[j][2]:
-                        case 'str':
-                            print(clasificado[j][1], end=' ')
-                        case 'int':
-                            print(clasificado[j][1], end=' ')
-                        case 'float':
-                            print(clasificado[j][1], end=' ')
-                        case 'complex':
-                            print(clasificado[j][1], end=' ')
-                        case 'list':
-                            print(imprimir_lista(clasificado[j][1]), end=' ')
-                        case 'bool':
-                            print(clasificado[j][1], end=' ')
-                        case 'sintipo':
-                            print(clasificado[j][1], end=' ')
-                        case 'TOK':
-                            if clasificado[j][1] not in ('(', ',', ')'):
-                                print(clasificado[j][1], end=' ')
-                        case _:
-                            #print(clasificado, j, '<- clasificado, j MOSTRAR')
-                            ...
-
-            print()
-
         case 'ASIGNAR':
             #print(clasificado, '<- clasificado ASIGNAR')
 
@@ -1202,11 +1210,6 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
 
             obj2 = clasificado[-1][1]
             tipo = clasificado[-1][2]           
-            """try:
-                if negativo: obj2 = - obj2
-            except UnboundLocalError:
-                pass"""
-
 
             VARIABLES[clasificado[0][1]] = (obj2, tipo)
 
@@ -1738,7 +1741,7 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                     fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
                                     #print(nLinea)
                                 ultimaCondicion = clasificado[1][1]
-                                #print(clasificado, '<- ultimaCondicion')
+                                #print(clasificado, '<- ultimaCondicion elif')
 
                             else: # La anterior condición era verdadera, con lo cual este bloque no se ejecuta
                                 fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
@@ -1746,12 +1749,12 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                         case 'else':
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
                             clasificado = evalExpresiones(clasificado, LINEAS)
-                            #print(ultimaCondicion)
+                            #print(ultimaCondicion, '<- ultimaCondicion else')
 
                             if not ultimaCondicion:
                                 ultimaCondicion = None
 
-                            else: # La anterior condición era verdadera, con lo cual este bloque no se ejecuta
+                            else:
                                 fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
 
 
@@ -1799,7 +1802,7 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                             modulos = [i[1] for i in clasificado[1::2]]
                             #print(modulos)
                             for i in modulos:    
-                                comando = f"python {sys.argv[0]} segundo {i}.hsy"
+                                comando = f"python {sys.argv[0]} s {i}.hsy" # "s" de segundo (no unidad de tiempo)
                                 IMPORTADOS += [i]
                                 KeysVars += [i]
                                 SALIDA = ejecutar_comando_terminal(comando)
@@ -1996,7 +1999,7 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
         print(f"Tipo de error: {ERROR} | Linea: {nLinea + 1}")
         match ERROR:
             case 1:
-                print(f"Error de sintaxis.")
+                ... # Sintaxis
             case 2:
                 print(f"\"{clasificado[i][1]}\" No se encuentra definido.")
                 Mug = SugerenciasWF(clasificado[i][1], KeysVars)
@@ -2016,16 +2019,18 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
                     
                 print(f"¿Querrá escribir \"{Sug}\" ( {TipoSug} )? Certeza: [{CertezaSug}/10]")
 
-            case 3:
-                print(f"Se esperaba un bloque identado despues de la estructura \"{clasificado[0][1]}\".")
-
+            case 3 | -3: # Añadir el dedentado
+                if ERROR == 3:
+                    print(f"Se esperaba un bloque identado despues de la estructura \"{clasificado[0][1]}\".")
+                elif ERROR == -3:
+                    ...
             case 4:
                 ...
             case 5:
                 ...
             case 6:
                 ...
-        print(f'{nLinea + 1} |{LINEAS[nLinea]}')
+        print(f'{nLinea + 1} | {LINEAS[nLinea]}')
         return True
     return False
 
@@ -2106,13 +2111,16 @@ def DATOS_DOCUMENTO_2():
     ]
     return datos
 
-
+import time
 if __name__ == "__main__":
+    
+    #inicio = time.time()
+
     if len(sys.argv) == 2:
         archivo1 = sys.argv[1]
         contenido1 = main(archivo1)
 
-    elif len(sys.argv) == 3 and sys.argv[1] == "segundo":
+    elif len(sys.argv) == 3 and sys.argv[1] == "s":
         archivo2 = sys.argv[2]
         contenido2 = main(archivo2)
         
@@ -2122,4 +2130,5 @@ if __name__ == "__main__":
         # Imprimir los datos en formato JSON
         print(json.dumps(datos))
 
+#print(f'{time.time() - inicio} s')
 #print(VARIABLES)
