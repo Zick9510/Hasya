@@ -8,7 +8,7 @@ Constantes:
 Símbolos y pormenores:
 [VALOR EN tok, VALOR ESCRITO, 'TOK']
 
-Funciones con return: / O del usuario 
+Funciones con return: / O del usuario (Incluye las funciones que retornan Nada)
 [VALOR EN funcReturn, VALOR ESCRITO, 'FUNCRETURN']
 
 Funciones sin return:
@@ -19,25 +19,63 @@ Métodos:
 
 """
 
+import ply.lex as lex
+
 import sys
 import subprocess
+
 import json
 
 import ast
 import re
+
+from Re_Expresiones import evaluar_expresion
 from Re_Reservadas import *
 
 d = combinar(combinar(tok, metodos), combinar(func, funcReturn))
+
 KeysVars = [i for i in d if re.match(r"[a-zA-Z]", i)]
 
-VARIABLES = { # NOMBRE: (VALOR, TIPO DE DATO)
+VARIABLES = { # (NOMBRE, CONTEXTO_): (VALOR, TIPO DE DATO) # Contexto = None si es general, "nombre de" si no
 
 }
 
 
-FUNCIONES = { # NOMBRE: (ARGUMENTOS, LINEA_DONDE_INICIA, LINEA_DONDE_TERMINA)
+FUNCIONES = { # NOMBRE: (ARGUMENTOS, fragmentoCodigo)
 
 }
+
+
+CLASES = {
+    
+
+}
+
+""" Ejemplo de clases:
+
+# La clase "Gato"
+
+'Gato': {
+        [ # Va a una lista de tuplas
+            ( # Cada tupla contiene el nombre de la función y una tupla
+                'Func1', ( # Las tuplas contienen:
+
+                    ('x', 'y', 'z'), # Argumentos de la función
+                    int, # Linea donde inicia
+                )
+                
+            ),
+            (
+                Func2', (
+
+                    ('x', 'y'),
+                    int,
+                )
+            )
+        ],
+    }
+
+"""
 
 IMPORTADOS = []
 
@@ -45,6 +83,7 @@ nLinea = 0
 
 ERRORES_ = [] # Lista de tuplas ('HYS', nLinea)
 
+contexto_ = None
 
 estructuras_primarias = { # Estructuras irreducibles
 
@@ -69,6 +108,21 @@ estructuras_primarias = { # Estructuras irreducibles
     ('CONST', '**=', 'CONST',): 'ELEVARLE',
     ('CONST', 'CONST', '**=', 'CONST',): 'ELEVARLE_ELEM',
 
+    ('CONST', '*/=', 'CONST',): 'RADICARLE',
+    ('CONST', 'CONST', '*/=', 'CONST',): 'RADICARLE_ELEM',
+
+    ('CONST', '>>=', 'CONST',): 'BITS_DERECHA',
+    ('CONST', 'CONST', '>>=', 'CONST',): 'BITS_DERECHA_ELEM',
+
+    ('CONST', '<<=', 'CONST',): 'BITS_IZQUIERDA',
+    ('CONST', 'CONST', '<<=', 'CONST',): 'BITS_IZQUIERDA_ELEM',
+
+    ('CONST', '%=', 'CONST',): 'RESTO',
+    ('CONST', 'CONST', '%=', 'CONST',): 'RESTO_ELEM',
+
+    ('CONST', '//=', 'CONST',): 'COCIENTE',
+    ('CONST', 'CONST', '//=', 'CONST',): 'COCIENTE_ELEM',
+
     ('if', 'CONST', ':',): 'if',
     ('elif', 'CONST', ':',): 'elif',
     ('else', ':',): 'else',
@@ -86,6 +140,8 @@ estructuras_primarias = { # Estructuras irreducibles
     ('match', 'CONST', ':',): 'match',
     ('case', 'CONST', ':',): 'case',
 
+    ('del', 'CONST', 'CONST',): 'del',
+
 
 }
 
@@ -98,21 +154,24 @@ estructuras_secundarias = { # Estructuras reduccibles a otras
 
 estructuras_notacion = { # Estructuras que puede usar el usuario para aclarar ciertas situaciones, pero que serán eliminadas de clasificado ya que no aportan nada
 
-    (':', 'tipo',): 'CONSTANTE_ACLARADA',
-    ('-', '>', 'tipo',): 'FUNCION_ACLARADA',
+    (':', 'CONST',): 'CONSTANTE_ACLARADA',
+    ('-', '>', 'CONST',): 'FUNCION_ACLARADA',
 
 }
 
 tipos_de_variables = ( # Tipos de variables en general
 
     'str', 
-    'list',
+    'lista',
+    'V-lista',
     'int', 
     'float',
     'complex', 
 
-    'tipo'
-    'sintipo'
+    'tipo',
+    'sintipo',
+
+    'INTER',
 
 )
 
@@ -157,14 +216,19 @@ asignadores = ( # Elementos capaces de asignar valores a variables
     '-=',
     '*=',
     '/=',
-    '**='
+    '**=',
+    '*/=',
+    '>>=',
+    '<<=',
+    '%=',
+    '//=',
 
 )
 
-iterables = ( # Tipos de dato sobre los cuales se puede iterar
+iterables = ( # Tipos de dato sobre los cuales se puede iterar y no es str
 
-    'list',
-    'str'
+    'lista',
+    'V-lista'
 
 )
 
@@ -183,215 +247,280 @@ aIdentar = ( # Palabras clave que lleven si o si a bloques identados (descontand
     'match',
     'case',
 
+    'class',
     'def',
 
 )
-keys_de_funcR = '|'.join(map(re.escape, funcReturn))
-keys_de_tok = '|'.join(re.escape(i) for i in tok.keys())
-#print(keys_de_tok)
-excluir_asignadores = '|'.join(map(re.escape, asignadores))
 
-def hayLista(texto: str, ini: str = '[', fini: str = ']') -> bool:
-    nivel = 0
-    inicio = None
-    for char in texto:
-        if char == ini:
-            nivel += 1
-            inicio = True
-        elif char == fini:
-            nivel -= 1
-            if nivel == 0 and inicio is not None:
-                return True
-    return False
+### LEXER ###
 
-def capturarLista(texto: str, ini: str = '[', fini: str = ']') -> list:
-    indices = []
-    nivel = 0
-    inicio = None
+import ply.lex as lex
 
-    for i, char in enumerate(texto):
-        if char == ini:
-            if nivel == 0:
-                inicio = i
-            nivel += 1
-        elif char == fini:
-            nivel -= 1
-            if nivel == 0 and inicio is not None:
-                indices.append((inicio, i + 1))
-                inicio = None
+# Definir las palabras reservadas y los tokens
+tokens = [
+    'ID',       # Identificadores
+    'NUMBER',   # Números enteros, flotantes y complejos
+    'STRING',   # Cadenas de caracteres
+    
+    'SUMARLE',
+    'RESTARLE',
+    'MULTIPLICARLE',
+    'DIVIDIRLE',
+    'ELEVARLE',
+    'RADICARLE',
+    'BITS_DER',
+    'BITS_IZQ',
+    'RESTO',
+    'COCIENTE',
 
-    return indices
+    'MODULO',
 
-def procesarLista(texto: str, ini: str = '[', fini: str = ']') -> list:
+    'MAS',     # Operador suma
+    'MENOS',    # Operador resta
+    'POR',    # Operador multiplicación
+    'DIVIDIR',   # Operador división
+    'ELEVAR',
+    'RADICAR',
+
+    'LPAREN',   # Paréntesis izquierdo
+    'RPAREN',   # Paréntesis derecho
+    'LCORCH',   # Corchete izquierdo
+    'RCORCH',   # Corchete derecho
+    'LLLAVE',   # Llave izquierda
+    'RLLAVE',   # Llave derecha
+
+    'COMA',     # Coma
+    'PCOMA',    # Punto y coma
+    'PUNTO',    # Punto
+    'DPUNTO',   # Dos puntos
+
+    'MENORQ',   # Menor que
+    'MAYORQ',   # Mayor que
+    'MENORIG',  # Menor o igual
+    'MAYORIG',  # Mayor o igual
+    'IGUAL',    # Igual
+    'IGUALCOMP',# Igual de comparación
+    'DISTINTO', # Distinto
+
+    'INTER', # Intervalos
+
+    'COMENTARIO',
+
+] + list(key.values())
+
+# Definir expresiones regulares para tokens
+
+t_SUMARLE = r'\+='
+t_RESTARLE = r'-='
+t_MULTIPLICARLE = r'\*='
+t_DIVIDIRLE = r'/='
+t_ELEVARLE = r'\*\*='
+t_RADICARLE = r'\*/='
+
+t_BITS_DER = r'>>='
+t_BITS_IZQ = r'<<='
+t_RESTO = r'%='
+t_COCIENTE = r'//='
+
+t_MAS = r'\+'
+t_MENOS = r'-'
+t_POR = r'\*'
+t_DIVIDIR = r'/'
+t_ELEVAR = r'\*\*'
+t_RADICAR = r'\*/'
+
+t_MODULO = r'%'
+
+t_LPAREN = r'\('
+t_RPAREN = r'\)'
+t_LCORCH = r'\['
+t_RCORCH = r'\]'
+t_LLLAVE = r'\{'
+t_RLLAVE = r'\}'
+
+t_COMA = r','
+t_PCOMA = r';'
+t_PUNTO = r'\.'
+t_DPUNTO = r':'
+
+t_MENORQ = r'<'
+t_MAYORQ = r'>'
+t_MAYORIG = r'>='
+t_MENORIG = r'<='
+t_IGUALCOMP = r'=='
+t_IGUAL = r'='
+t_DISTINTO = r'!='
+
+t_COMENTARIO = r'\#'
+
+def t_NUMBER(t):
+    r'-*\d+(\.\d+)?j?'
+    if 'j' in t.value:
+        t.value = complex(t.value)
+    elif '.' in t.value:
+        t.value = float(t.value)
+    else:
+        t.value = int(t.value)
+    return t
+
+def t_STRING(t):
+    r'\'[^\']*\''
+    t.value = t.value[1:-1]
+    return t
+
+def t_INTER(t):
+    r'\[[^\[\]]*:[^\[\]]*(?::[^\[\]]*)?\]'
+    t.value = t.value[1:-1]  # Quitar los corchetes exteriores
+    parts = t.value.split(':')
+    parts = [p.strip() if p.strip() else 'Nada' for p in parts]
+    
+    while len(parts) < 3:
+        parts.append('Nada')
+    
+    t.value = parts
+    return t
+
+def t_ID(t):
+    r'[a-zA-Z_][a-zA-Z_0-9]*[\.a-zA-Z_0-9]*'
+    t.type = key.get(t.value, 'ID')
+    return t
+
+t_ignore = ' \t'
+
+def t_error(t):
+    print(f"Illegal character '{t.value[0]}'")
+    t.lexer.skip(1)
+
+lexer = lex.lex()
+
+def agruparTokens(tokens: list) -> list:
     """
-    Procesa una lista dada en formato de cadena, eliminando espacios innecesarios y tokenizando los elementos internos.
+    Función que agrupa los tokens en listas y sets anidados.
     """
-    #print(f'procesarLista: {texto = }')
+    stack = []
+    lista_actual = []
+    resultado = []
 
-    elementos = []
-    nivel = 0
-    elemento_actual = ''
+    #print(tokens, '<- pre pop')
 
-    for char in texto:
-        if char == ini:
-            if nivel > 0:
-                elemento_actual += char
-            nivel += 1
-        elif char == fini:
-            nivel -= 1
-            if nivel > 0:
-                elemento_actual += char
-            elif nivel == 0 and elemento_actual:
-                elementos.append(elemento_actual.strip())
-                elemento_actual = ''
-        elif char == ',' and nivel == 1:
-            if elemento_actual:
-                elementos.append(elemento_actual.strip())
-                elemento_actual = ''
-        elif nivel > 0:
-            elemento_actual += char
+    for it, token in enumerate(tokens):
+        vlista = False
 
-    if elemento_actual:  # Para manejar el caso donde no hay comas al final de la lista
-        elementos.append(elemento_actual.strip())
+        if token[1] == 'v':
+            vlista = True
 
-    #print(elementos, '<- elementos procesados')
-    tokens = []
-    for elemento in elementos:
-        clasi = clasificar(elemento)
-        if len(clasi) >= 2:
-            for c in clasi:
-                tokens.append(c)
+        elif token[0] == '[' or token[0] == '{':
+            # Si encontramos un corchete o llave izquierdo, comenzamos una nueva lista o set
+            if vlista and token[0] == '[':
+                tokens.pop(it-1)
+                nuevo_grupo = ['CONST', [], 'V-lista']
+            elif token[0] == '[':
+                nuevo_grupo = ['CONST', [], 'lista']
+            elif token[0] == '{':
+                nuevo_grupo = ['CONST', [], 'set']
+
+            if stack:
+                lista_actual.append(nuevo_grupo)
+            else:
+                resultado.append(nuevo_grupo)
+            stack.append(lista_actual)
+            lista_actual = nuevo_grupo[1]
+        elif token[0] == ']' or token[0] == '}':
+            # Si encontramos un corchete o llave derecho, terminamos la lista o set actual
+            if stack:
+                lista_actual = stack.pop()
+        elif token[0] == ',':
+            if not stack:
+                resultado.append(token)
+            else:
+                # Si encontramos una coma, simplemente continuamos
+                continue
+        elif token[0] == 'COMENTARIO':
+            break
+        elif token[0] == 'INTER':
+            # Si encontramos un intervalo, lo añadimos a la lista o set actual
+            if stack:
+                lista_actual.append(['CONST', token[1:], 'INTER'])
+            else:
+                resultado.append(['CONST', token[1:], 'INTER'])
         else:
-            tokens.append(clasi[0])
-    #tokens = [clasificar(elemento) for elemento in elementos]
-    #print(tokens, '<- tokens generados')
+            # Para cualquier otro token, lo añadimos a la lista o set actual
+            if stack:
+                lista_actual.append(token)
+            else:
+                resultado.append(token)
+
+
+    # Añadir cualquier lista o set restante que no haya sido cerrado
+    while stack:
+        lista_actual = stack.pop()
+
+    return resultado
+
+def combinarTokens(tokens: list) -> list:
+    i = 0
+    while i < len(tokens) - 1:
+        if tokens[i][0] == 'else' and tokens[i+1][0] == 'if':
+            tokens[i] = ['elif', 'elif', 'TOK']
+            del tokens[i+1:i+2]
+        i += 1
+    return tokens
+
+def clasificar(texto: str):
+    lexer.input(texto)
+    tokens = []
+    while True:
+        token = lexer.token()
+        if not token:
+            break
+        if token.type == 'NUMBER':
+            if 'j' in str(token.value):
+                token.value = complex(token.value)
+                token.type = 'complex'
+            elif '.' in str(token.value):
+                token.value = float(token.value)
+                token.type = 'float'
+            else:
+                token.value = int(token.value)
+                token.type = 'int'
+            tokens.append(['CONST', token.value, token.type])
+        elif token.type == 'STRING':
+            tokens.append(['CONST', token.value, 'str'])
+        elif token.type == 'ID':
+            if token.value in funcReturn or token.value in FUNCIONES:
+                tokens.append(['CONST', token.value, 'FUNCRETURN'])
+            elif token.value in metodos:
+                tokens.append(['CONST', token.value, 'METD'])
+            elif token.value == 'Verdadero':
+                tokens.append(['CONST', 1, 'int'])
+            elif token.value == 'Falso':
+                tokens.append(['CONST', 0, 'int'])
+            elif token.value == 'Nada':
+                tokens.append(['CONST', 'Nada', 'sintipo'])
+            else:
+                if token.value == '_':
+                    tokens.append(['CONST', '_', 'ANY'])
+                else:
+                    tokens.append(['CONST', token.value, 'VAR'])
+        elif token.type == 'INTER':
+            tokens.append(['CONST', [clasificar(token.value[0])[0], clasificar(token.value[1])[0], clasificar(token.value[2])[0]], 'INTER'])
+        elif token.type == 'COMENTARIO':
+            break
+        elif token.value in tok:
+            tokens.append([tok[token.value], token.value, 'TOK'])
+        elif token.value in key:
+            tokens.append([key[token.value], token.value, 'TOK'])
+        else:
+            print('TOKEN NO PROCESADO: ', token.value, token.type, (token))
+            print(tokens)
+            sys.exit()
+
+    tokens = agruparTokens(tokens)
+    tokens = combinarTokens(tokens)
+    #print(tokens, '<- tokens')
 
     return tokens
 
-def procesarDict(texto: str, ini: str = '{', fini: str = '}') -> list:
-    diccionario = []
-    item = []
-    lista = texto.split(',')
-
-    lista[0] = lista[0][1:]
-    lista[-1] = lista[-1][:-1]
-
-    i = 0
-    while i < len(lista):
-        temp = clasificar(lista[i])
-
-        item.append(temp[0])
-        item.append(temp[-1])
-
-        diccionario += [item]
-        item = []
-        i += 1
-
-    return diccionario
-
-def condiClasificar(coincidencia: str, identificadas: list) -> list:
-
-    if re.match(r"'([^']*)'", coincidencia):  
-        identificadas.append(['CONST', coincidencia[1:-1], 'str'])
-
-    elif re.match(r'\d*\.?\d+j$', coincidencia):  # Números complejos
-        identificadas.append(['CONST', complex(coincidencia), 'complex'])
-
-    elif re.match(r'-*\d+\.?\d*$', coincidencia):  # Números
-        if '.' in coincidencia:
-            identificadas.append(['CONST', float(coincidencia), 'float'])
-        else:
-            identificadas.append(['CONST', int(coincidencia), 'int'])
-
-    elif coincidencia in ('Verdadero', 'Falso'):  # Booleanos
-        identificadas.append(['CONST', 1 if coincidencia == 'Verdadero' else 0, 'int'])
-
-    elif coincidencia == 'Nada':  # None
-        identificadas.append(['CONST', 'Nada', 'sintipo'])
-
-    elif coincidencia in ('int', 'float', 'complex', 'str', 'list', 'tuple', 'dict', 'set', 'bool'):
-        identificadas.append(['tipo', coincidencia, 'tipo'])
-
-    elif re.match(r'{(.:.)+(,.:.)*}', coincidencia):
-        items_dict = procesarDict(coincidencia)
-        identificadas.append(['CONST', items_dict, 'dict'])
-
-    elif re.match(r'{.*\}', coincidencia):
-        elementos_conj = procesarLista(coincidencia[0:-1])
-        identificadas.append(['CONST', elementos_conj, 'set'])
-
-    elif coincidencia in tok:  # Aca entra casi todo
-        identificadas.append([tok[coincidencia], coincidencia, 'TOK'])
-
-    elif coincidencia in func: # Funciones
-        identificadas.append([func[coincidencia], coincidencia, 'FUNC'])
-
-    elif coincidencia in funcReturn: # Funciones con return
-        identificadas.append([funcReturn[coincidencia], coincidencia, 'FUNCRETURN'])
-
-    elif coincidencia in metodos:  # Métodos
-        identificadas.append([coincidencia, metodos[coincidencia], 'METD'])
-
-    elif coincidencia in FUNCIONES:
-        identificadas.append([coincidencia, coincidencia, 'FUNCRETURN'])
-
-    elif re.match(r'[\.A-Za-z_]\w*', coincidencia):
-        if coincidencia == '_':
-            identificadas.append(['CONST', coincidencia, 'CUALQR'])
-        else:
-            identificadas.append(['CONST', coincidencia, 'VAR'])
-
-    else:
-        hayL = hayLista(coincidencia)
-        if hayL:
-            #print('coincidencia:', coincidencia, sep='\n')
-
-            indices = capturarLista(coincidencia)
-
-            for i, j in indices:
-                #print(i, j)
-                elementos_lista = procesarLista(coincidencia[i:j])
-                #print(elementos_lista, '<- elementos_lista')
-                identificadas.append(['CONST', elementos_lista, 'list'])
-                #print(coincidencias, coincidencia, (iteracion), '<- cci')
-
-        else:
-            print(f"{coincidencia = } <- COINCIDENCIA NO CLASIFICADA")
-            print(identificadas)
-            sys.exit()
-
-    return identificadas
-
-def clasificar(texto: str) -> list:
-    """
-    clasificar toma como entrada un texto la/s linea/s en cuestión y 
-    la/s convierte en una serie de tokens para ser procesados posteriormente.
-    En esencia, clasificar es un Lexer.
-    """
-
-    identificadas = [] # identificadas = clasificado, pero no lo cambiemos porque me gusta como queda
-    
-    rf"\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]" # Este cumple con todo
-
-    patron = rf'(\[(?:\[*[^[\[{excluir_asignadores}]*\]*|(?!.*(?:{excluir_asignadores}))\[*[^[\]]*\]*)*\]|-*\d+\.?\d*|:{keys_de_funcR}|:{keys_de_tok}|[A-Za-z0-9_][A-Za-z_]*[\.A-Za-z_0-9]*|["\'].*?["\']|\(.*?,\)|\{{.*?\}}|-*\d+\.?\d*j|Verdadero|Falso|Nada)'
-
-    coincidencias = re.findall(patron, texto)
-    #print(f'{texto = }')
-    #print('coincidencias: ', coincidencias)
-    
-    for iteracion, coincidencia in enumerate(coincidencias):
-        #print(coincidencia, '<- coincidencia')
-        try: 
-            identificadas = condiClasificar(coincidencia, identificadas)
-        except TypeError:
-            coincidencia = coincidencia[0]
-            identificadas = condiClasificar(coincidencia, identificadas)
-
-        
-        #print(identificadas[-1], '<-- COINCIDENCIA DETECTADA')
-
-    #print(identificadas, '<- clasificar return')
-    return identificadas
 
 def resumir(clasificado: list) -> str:
     """
@@ -407,7 +536,7 @@ def resumir(clasificado: list) -> str:
 
     i = 0
     while i < len(clasificado):
-        if clasificado[i][2] in tipos_de_variables or clasificado[i][2] == 'VAR':
+        if clasificado[i][0] == 'CONST':
             resumido += 'C'
 
         elif clasificado[i][2] == 'TOK':
@@ -418,15 +547,6 @@ def resumir(clasificado: list) -> str:
 
         elif clasificado[i][2] == 'sintipo':
             resumido += 'S'
-
-        elif clasificado[i][2] == 'FUNC':
-            resumido += 'Fn'
-
-        elif clasificado[i][2] == 'FUNCRETURN':
-            resumido += 'Fr'
-
-        elif clasificado[i][0] == 'METD':
-            resumido += 'M'
 
         i += 1
     return resumido
@@ -458,15 +578,36 @@ def asignarP(clasificado: list, inicio: str = '(', fin: str = ')') -> dict:
                     break
     return parejas
 
+def aplanar(clasificado: list) -> list:
+    aplanado = []
+    pila = [clasificado]
+    
+    while pila:
+        actual = pila.pop()
+        for i in actual[1]:
+            if i[2] in iterables:
+                pila.append(i)
+            else:
+                aplanado.append(i)
+                
+    return aplanado
+
 def reemVariables(clasificado: list, LINEAS: list, nLinea: int, VARIABLES: dict = VARIABLES) -> list:
     #print('VARIABLES:', VARIABLES, sep='\n')
     #print(clasificado, '<- clasificado reemVariables')
+
     i = 0
     while i < len(clasificado):
+        #print(i, '<- i reemVariables')
         Rp = False
         
         if clasificado[i][2] == 'VAR':
             Rp = True
+
+            if i + 1 < len(clasificado):
+                if clasificado[i+1][2] == 'set':
+                    Rp = False
+     
             for j in clasificado[i:]:
                 if j[1] in asignadores:
                     Rp = False
@@ -488,54 +629,68 @@ def reemVariables(clasificado: list, LINEAS: list, nLinea: int, VARIABLES: dict 
             if clasificado[0][0] == 'def':
                 Rp = False
 
-        elif clasificado[i][2] == 'list':
-            clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'list']
+            if clasificado[0][0] == 'del':
+                if i == 1:
+                    Rp = False
+        
+        elif clasificado[i][2] == 'lista':
+            clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'lista']
+        
+        elif clasificado[i][2] == 'V-lista':
+            clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'V-lista']
+
+        elif clasificado[i][2] == 'INTER':
+            clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'INTER']
+
+        elif clasificado[i][2] == 'set':
+            clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'set']
 
         #print(i, '<- i', Rp)
 
         if Rp:
-            #print(VARIABLES)
+            #print(VARIABLES, contexto_)
             #print(clasificado, i)
-            if clasificado[i][1] not in VARIABLES:
-                #print(LINEAS, nLinea, 'AAA')
+            if (clasificado[i][1], contexto_) not in VARIABLES:
+                #print('AAA')
                 if clasificado[i][1] in KeysVars:
                     pass
                 else:
                     ServirErrores(2, LINEAS, nLinea, i)
                     sys.exit()
             else:
-                clasificado[i] = ['CONST', VARIABLES[clasificado[i][1]][0], VARIABLES[clasificado[i][1]][1]]
+                clasificado[i] = ['CONST', VARIABLES[(clasificado[i][1], contexto_)][0], VARIABLES[(clasificado[i][1], contexto_)][1]]
             #print(clasificado, i)
         i += 1
     #print(clasificado, '<- reemVariables return')
+    #print(VARIABLES)
     return clasificado
 
-def enFuncion(LINEAS: list, nLinea: int) -> bool:
-    #print('FUNCIONES:', FUNCIONES)
-    nivel = 0
-    for _, i, j in FUNCIONES.values():
-        print(i, j)
-        if nLinea in range(i, j):
-            nivel += 1
-
-    return nivel, nLinea+1
-
-def argAux(clasificado: list) -> list:
-    ...
-    
 def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
+    global contexto_
     #print(clasificado, '<- clasificado evalFuncionesR')
-
-    
-    
     copiaclasificado = clasificado.copy()
+
+    i = 0
+    while i < len(copiaclasificado) - 1:
+        if copiaclasificado[i][2] == 'FUNC' and copiaclasificado[i+1][1] == '(':
+            copiaclasificado[i][2] = 'FUNCRETURN'
+
+        if copiaclasificado[i][2] == 'FUNCRETURN' and copiaclasificado[i+1][1] != '(':
+            copiaclasificado[i][2] = 'FUNC'
+
+        i += 1
+
+    if copiaclasificado:
+        if copiaclasificado[-1][2] == 'FUNCRETURN':
+            copiaclasificado[-1][2] = 'FUNC'
+
     i = len(copiaclasificado) - 1
     #print(copiaclasificado)
-    eliminar = []
+
     while i >= 0:
         #print(copiaclasificado, i, '<- copiaclasificado, i')
         parejas = asignarP(copiaclasificado)
-        if copiaclasificado[i][2] in ('FUNC', 'FUNCRETURN', 'METD'):
+        if copiaclasificado[i][2] in ('FUNCRETURN', 'METD'):
             #print('data:')
             j = parejas[i+1]
             #print(parejas)
@@ -551,66 +706,75 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
 
             if copiaclasificado[i][2] == 'FUNCRETURN':
                 #print('FUNCIONES:', FUNCIONES)
-                if copiaclasificado[i][1] in FUNCIONES: # FUNCIONES contiene exclusivamente las funciones que haya definido el usuario
-                    #print(copiaclasificado, i, '<- FUNCIONES')
+                if copiaclasificado[i][1] in FUNCIONES:
+                    pre_contexto_ = contexto_
+                    contexto_ = copiaclasificado[i][1]
 
                     ArgumentosCall = []
-                    for k in copiaclasificado[i+2:j:2]:
-                        ArgumentosCall += [k]
-
-                    ArgumentosFunc = FUNCIONES[copiaclasificado[i][1]][0][0]
-
-                    #print(ArgumentosCall, '<- ArgumentosCall')
-                    #print(ArgumentosFunc, '<- ArgumentosFunc')
-
-                    for k in range(len(ArgumentosFunc)):
-                        VARIABLES[ArgumentosFunc[k][1]] = (ArgumentosCall[k][1], ArgumentosCall[k][2])
-                    #print(VARIABLES)
-                    #print(copiaclasificado, i)
-                    #print(FUNCIONES, '<- FUNCIONES')
-                    inicio = FUNCIONES[copiaclasificado[i][1]][1]
-                    fin = FUNCIONES[copiaclasificado[i][1]][2]
-                    #print(LINEAS, inicio+1, fin, '<- LINEAS, inicio, fin')
-                    ejecuta, __ = seleccionarFragmento(LINEAS, inicio)
-                    #print(ejecuta, '<- ejecuta')
-                    #print(LINEAS[inicio:fin+2], '<- ejecuta')
-                    #print(LINEAS, inicio)
-                    
-                    #sys.exit()
-                    retorno = ejecutarCodigo(LINEAS, fin, nLinea=inicio+1)
-                    #print(retorno, '<- retorno')
-                    #print(retorno[::2])
-                    if retorno == 0:
-                        copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
-                    else:
-                        if len(retorno) == 1:
-                            copiaclasificado[i] = retorno[0]
+                    ArgumentosClave = []
+                    k = i + 2
+                    while k < j:
+                        if copiaclasificado[k+1][0] == '=':
+                            ArgumentosClave.append((copiaclasificado[k], copiaclasificado[k + 2]))
+                            k += 2
+                        elif copiaclasificado[k][0] == ',':
+                            pass
                         else:
-                            for k in reversed(retorno):
-                                copiaclasificado.insert(i, k)
-                                
-                            j += len(retorno)
-                            i += len(retorno)
+                            ArgumentosCall.append(copiaclasificado[k])
+                        k += 1
+
+                    ArgumentosFunc = FUNCIONES[copiaclasificado[i][1]][0]
+
+                    argumentos = [None] * len(ArgumentosFunc)
+                    # Asignar argumentos posicionales
+                    for indi, (arg, valor) in enumerate(zip(ArgumentosFunc, ArgumentosCall)):
+                        argumentos[indi] = valor
+
+                    # Asignar argumentos clave
+                    for clave, valor in ArgumentosClave:
+                        for indi, arg in enumerate(ArgumentosFunc):
+                            if arg[0][1] == clave[1]:
+                                argumentos[indi] = valor
+                                break
+
+                    # Asignar valores predeterminados a los argumentos que no fueron proporcionados
+                    for indi, arg in enumerate(ArgumentosFunc):
+                        if argumentos[indi] is None:
+                            if len(arg) > 1:  # Verificar si el argumento tiene un valor predeterminado
+                                argumentos[indi] = ['CONST', arg[1][1], arg[1][2]]
+                            else:
+                                raise TypeError(f"Argumento faltante: {arg[0][1]}")
+                    #print(argumentos)
+                    # Actualizar VARIABLES con los argumentos
+                    for arg, valor in zip(ArgumentosFunc, argumentos):
+                        VARIABLES[(arg[0][1], contexto_)] = (valor[1], valor[2])
+
+                    retorno = ejecutarCodigo(FUNCIONES[copiaclasificado[i][1]][1][1:])
+                    contexto_ = pre_contexto_
+                    copiaclasificado[i] = retorno[-1][0]
+
+                    #sys.exit()
+                    #print(copiaclasificado, i)
+
                     #print(copiaclasificado, i, '<- copiaclasificado, i')
 
                 else:
                     #print(copiaclasificado, i, 'pre match')
-                    match copiaclasificado[i][0]:
-                        case 'input':
+                    match copiaclasificado[i][1]:
+                        case 'ingresar':
                             if j - i == 2:
                                 copiaclasificado[i] = ['CONST', f'{input()}', 'str']
 
                             elif j - i == 3:
                                 copiaclasificado[i] = ['CONST', f'{input(copiaclasificado[i+2][1])}', 'str']
 
-                        case 'len':
+                        case 'largo':
                             copiaclasificado[i] = ['CONST', len(copiaclasificado[i+2][1]), 'int']
-                            #print(copiaclasificado, i, 'post len')
 
-                        case 'reversed':
+                        case 'invertir':
                             copiaclasificado[i] = ['CONST', [k for k in copiaclasificado[i+2][1][::-1]], copiaclasificado[i+2][2]]
 
-                        case 'range':
+                        case 'rango':
                             #print(copiaclasificado, j, i, '<- copiaclasificado, j, i')
                             if j - i == 3:
                                 copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1])))))[0]
@@ -620,10 +784,10 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
                             elif j - i == 7:
                                 copiaclasificado[i] = clasificar(str(list(range(int(copiaclasificado[i+2][1]), int(copiaclasificado[i+4][1]), int(copiaclasificado[i+6][1])))))[0]
                         
-                        case 'list':
+                        case 'lista':
                             copiaclasificado[i] = clasificar(str(list(copiaclasificado[i+2][1])))[0]
 
-                        case 'matrix':
+                        case 'matriz':
                             # Argumentos:
                             # Lista con dimensiones, rellenar con
                             
@@ -644,21 +808,21 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
                             copiaclasificado[i] = clasificar(str(matriz))[0]
                             #print(clasificado, i)
 
-                        case 'enumerate':
+                        case 'enumerar':
                             #print(copiaclasificado, i)
                             k = 0
                             temp = []
 
                             while k < len(copiaclasificado[i+2][1]):
-                                temp += [['CONST', [['CONST', k, 'int'], copiaclasificado[i+2][1][k]], 'list']]
+                                temp += [['CONST', [['CONST', k, 'int'], copiaclasificado[i+2][1][k]], 'lista']]
 
                                 k += 1
                             #print('temp:', temp)
 
-                            copiaclasificado[i] = ['CONST', temp, 'list']
+                            copiaclasificado[i] = ['CONST', temp, 'lista']
                             #print(copiaclasificado, i)
 
-                        case 'all':
+                        case 'todos':
                             #print(copiaclasificado, i)
                             k = 0
                             copiaclasificado[i] = ['CONST', 1, 'int']
@@ -668,7 +832,7 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
                                     break
                                 k += 1
                         
-                        case 'any':
+                        case 'alguno':
                             k = 0
                             copiaclasificado[i] = ['CONST', 0, 'int']
                             while k < len(copiaclasificado[i+2][1]):
@@ -683,53 +847,164 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
                                 copiaclasificado[i] = copiaclasificado[i+2].copy()
                             else: 
                                 copiaclasificado[i] = ['CONST', 0, 'int']
+                            
+                        case 'mapear':
+                            #print(copiaclasificado, i)
+                            
+                            iterable = copiaclasificado[i+4]
 
-            elif copiaclasificado[i][2] == 'FUNC':
-                match copiaclasificado[i][0]:
-                    case 'print':
-                        if j - i == 2:
-                            print() 
-                        else:
-                            for k in range(i+2, j):
-                                #print(copiaclasificado, k, '<- clasificado, k')
-                                match copiaclasificado[k][2]:
-                                    case 'str':
-                                        print(copiaclasificado[k][1], end=' ')
-                                    case 'int':
-                                        print(copiaclasificado[k][1], end=' ')
-                                    case 'float':
-                                        print(copiaclasificado[k][1], end=' ')
-                                    case 'complex':
-                                        print(copiaclasificado[k][1], end=' ')
-                                    case 'list':
-                                        print(imprimir_lista(copiaclasificado[k][1]), end=' ')
-                                    case 'bool':
-                                        print(copiaclasificado[k][1], end=' ')
-                                    case 'sintipo':
-                                        print(copiaclasificado[k][1], end=' ')
-                                    case 'TOK':
-                                        if copiaclasificado[k][1] not in ('(', ',', ')'):
+
+                            funcion = copiaclasificado[i+2]
+                            funcion[2] = 'FUNCRETURN'
+                            #print(funcion, '<- funcion')
+                            #print(iterable[1], '<- iterable[1]')
+                            #print(FUNCIONES)
+
+                            if funcion[1] in FUNCIONES:
+                                fragmentoCodigo = FUNCIONES[copiaclasificado[i+2][1]][1]
+
+                                l = 0
+                                while l < len(iterable[1]):
+                                    #print(iterable[1][l])
+
+                                    pre_contexto_ = contexto_
+                                    contexto_ = copiaclasificado[i+2][1]
+
+                                    ArgumentosCall = [iterable[1][l]]
+                                    
+
+                                    ArgumentosFunc = FUNCIONES[copiaclasificado[i+2][1]][0][0]
+                                    for k in range(len(ArgumentosFunc)):
+                                        VARIABLES[(ArgumentosFunc[k][1], contexto_)] = (ArgumentosCall[k][1], ArgumentosCall[k][2])
+
+                                    #print(VARIABLES)
+
+                                    retorno = ejecutarCodigo(fragmentoCodigo[1:])
+                                    #print(retorno)
+
+                                    contexto_ = pre_contexto_
+
+                                    iterable[1][l] = retorno[-1][0]
+                                
+                                    l += 1
+
+                            else:
+                                l = 0
+                                funcion[2] = 'FUNCRETURN'
+
+                                while l < len(iterable[1]):
+                                    
+
+                                    iterable[1][l] = evalFuncionesR([funcion, ['(', '(', 'TOK'], iterable[1][l], [')', ')', 'TOK']], LINEAS)[0]
+
+                                    l += 1
+
+                            copiaclasificado[i] = iterable
+
+                        case 'filtrar':
+                            #print(copiaclasificado, i)
+                            iterable = copiaclasificado[i+4]
+                            iterabletemp = ['CONST', [], 'lista']
+                            funcion = copiaclasificado[i+2]
+                            funcion[2] = 'FUNCRETURN'
+
+                            if funcion[1] in FUNCIONES:
+                                fragmentoCodigo = FUNCIONES[funcion[1]][1]
+
+                                l = 0
+                                while l < len(iterable[1]):
+                                    #print(iterable[1][l])
+
+                                    pre_contexto_ = contexto_
+                                    contexto_ = copiaclasificado[i+2][1]
+
+                                    ArgumentosCall = [iterable[1][l]]
+                                    
+
+                                    ArgumentosFunc = FUNCIONES[copiaclasificado[i+2][1]][0][0]
+                                    for k in range(len(ArgumentosFunc)):
+                                        VARIABLES[(ArgumentosFunc[k][1], contexto_)] = (ArgumentosCall[k][1], ArgumentosCall[k][2])
+
+                                    #print(VARIABLES)
+
+                                    retorno = ejecutarCodigo(fragmentoCodigo[1:])
+                                    #print(retorno, '<- retorno')
+
+                                    contexto_ = pre_contexto_
+                                    #print(iterabletemp)
+                                    if retorno[-1][0][1]:
+                                        iterabletemp[1].append(iterable[1][l])
+                                
+                                    l += 1
+                                copiaclasificado[i] = iterabletemp
+                            else:
+                                l = 0
+                                funcion[2] = 'FUNCRETURN'
+                                iterable = copiaclasificado[i+4]
+                                iterabletemp = iterabletemp = ['CONST', [], 'lista']
+
+                                while l < len(iterable[1]):
+                                    iterabletemp[1].append(evalFuncionesR([funcion, ['(', '(', 'TOK'], iterable[1][l], [')', ')', 'TOK']], LINEAS)[0])
+
+                                    l += 1
+                            copiaclasificado[i] = iterabletemp
+
+                        case 'aplanar':
+                            #print(copiaclasificado, i)
+                            copiaclasificado[i] = ['CONST', aplanar(copiaclasificado[i+2]), 'lista']
+                        
+                        case 'mostrar':
+                            if j - i == 2: # No tiene argumentos
+                                pass 
+                            else:
+                                for k in range(i+2, j):
+                                    #print(copiaclasificado, k, '<- clasificado, k')
+                                    match copiaclasificado[k][2]:
+                                        case 'str':
                                             print(copiaclasificado[k][1], end=' ')
-                                    case _:
-                                        #print(clasificado, j, '<- clasificado, j MOSTRAR')
-                                        ...
+                                        case 'int':
+                                            print(copiaclasificado[k][1], end=' ')
+                                        case 'float':
+                                            print(copiaclasificado[k][1], end=' ')
+                                        case 'complex':
+                                            print(copiaclasificado[k][1], end=' ')
+                                        case 'lista':
+                                            print(imprimir_lista(copiaclasificado[k][1], LINEAS), end=' ')
+                                        case 'bool':
+                                            print(copiaclasificado[k][1], end=' ')
+                                        case 'sintipo':
+                                            print(copiaclasificado[k][1], end=' ')
+                                        case 'VAR':
+                                            print(VARIABLES[(copiaclasificado[k][1], contexto_)][0], end=' ')
+                                        case 'TOK':
+                                            if copiaclasificado[k][1] not in ('(', ',', ')'):
+                                                print(copiaclasificado[k][1], end=' ')
+                                        case 'INTER':
+                                            print(imprimir_inter(copiaclasificado[k][1]), end=' ')
+                                        case _:
+                                            print(clasificado, j, '<- clasificado, j MOSTRAR')
+                                            ...
 
-                        print()
-                        copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
+                            print()
+                            copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
 
-                    case 'help':
-                        if j - i == 2:
-                            ...
-                        elif j - i == 3:
-                            ...
-                        copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
+                        case 'ayuda':
+                            if j - i == 2:
+                                ...
+                            elif j - i == 3:
+                                ...
+                            copiaclasificado[i] = ['CONST', 'Nada', 'sintipo']
+
+                #print(copiaclasificado, i, j)
+                del copiaclasificado[i+1:j+1]
+                #print(copiaclasificado)
             elif copiaclasificado[i][2] == 'METD':
                 ...
             #print(copiaclasificado, i, j, '<- data 2')
             #del copiaclasificado[i+1:j+1]    
             #print(copiaclasificado)
             #i = j + 1
-            del copiaclasificado[i+1:j+1]
+                del copiaclasificado[i+1:j+1]
             #eliminar.append((i+1, j+1)) # Se agregan los índices desde el ( hasta el ) para después eliminarlos
         i -= 1 # Y se le resta 1
 
@@ -773,6 +1048,11 @@ def idenExpresiones(clasificado: list) -> list:
                 inicio = i
                 fin = False
 
+            """elif clasificado[i][2] == 'VAR':
+            if inicio is False:
+                inicio = i
+                fin = False"""
+
         elif clasificado[i][1] in oPosibles:
             #print('oPosibles', i)
             if inicio is False:
@@ -795,6 +1075,12 @@ def idenExpresiones(clasificado: list) -> list:
             if inicio is False:
                 inicio = i
                 fin = False
+        
+        elif clasificado[i][2] == 'INTER':
+            if inicio is False:
+                inicio = i
+                fin = False
+        
         else:
             #print('else', i, inicio, fin)
             if inicio is not False:
@@ -815,10 +1101,11 @@ def idenExpresiones(clasificado: list) -> list:
             expresiones.remove((i[0], i[1]))
     return expresiones
 
+
 def evalExpresiones(clasificado: list, LINEAS) -> list:
     #print(clasificado, ' <- clasificado evalExpresion 1')
 
-    # Funciones con return
+    # Funciones con return (Nada incluido)
     clasificado = evalFuncionesR(clasificado, LINEAS)
     #print(clasificado, '<- evalFuncionesR')
 
@@ -840,22 +1127,44 @@ def evalExpresiones(clasificado: list, LINEAS) -> list:
             if clasificado[j][2] == 'str':
                 subexpresion += repr(clasificado[j][1])
                 hayString = True
-            elif clasificado[j][2] == 'list':
+            elif clasificado[j][2] == 'lista':
+                subexpresion += str(procesarListaAnidada(clasificado[j][1]))
+            elif clasificado[j][2] == 'V-lista':
                 subexpresion += str(procesarListaAnidada(clasificado[j][1]))
             elif clasificado[j][0] in comparadores:
                 hayComp = True
                 subexpresion += str(clasificado[j][0])
+
+            elif clasificado[j][2] == 'INTER':
+                #print('Entra como inter')
+                #print(clasificado, j)
+                subexpresion += '['
+                k = 0
+                while k < 3:
+                    if clasificado[j][1][k][1] == 'Nada':
+                        subexpresion += 'None'
+                    else:
+                        subexpresion += str(clasificado[j][1][k][1])
+                    if 0 <= k <= 1:
+                        subexpresion += ':' 
+                    k += 1
+                subexpresion += ']'
+
             else:
                 subexpresion += str(clasificado[j][1])
             j += 1
+
         #print(clasificado, i, '<- clasificado, i ***')
-        
-        print(f'{subexpresion = }')
-        """
-        Aca debería ir nuestra propia función para evaluar propiamente las expresiones
-        """
-        res = eval(subexpresion)
-        #print(res, '<- res')
+
+        #print(f'{subexpresion = }')
+
+        try:
+            res = evaluar_expresion(subexpresion)
+
+        except:
+            print(clasificado, i, '<- clasificado, i ***')
+            print(f'{subexpresion = }')
+            sys.exit()
         
         if isinstance(res, complex):
             #print("hayImag")
@@ -914,16 +1223,53 @@ def evalExpresiones(clasificado: list, LINEAS) -> list:
     return clasificado
 
 def procesarListaAnidada(lista):
+    #print(lista, '<- lista')
     if isinstance(lista, list):
-        return '[' + ','.join(procesarListaAnidada(elem[1]) for elem in lista) + ']'
+        if lista[0][2] == 'INTER':
+            ret = ''
+            for i, elem in enumerate(lista[0][1]):
+                if elem[1] != 'Nada':
+                    ret += f'{elem[1]}'
+                else:
+                    ret += 'None'
+                if i + 1 < 3:
+                    ret += ':'
+            return '[' + ret + ']'
+        
+        else:
+            ret = ''
+            for it, elem in enumerate(lista):
+                if elem[1] != 'Nada':
+                    ret += f'{procesarListaAnidada(elem[1])}'
+                else:
+                    ret += 'None'
+                if it + 1 < len(lista):
+                    ret += ','
+            return '[' + ret + ']'
+
+            #return '[' + ','.join(procesarListaAnidada(elem[1]) for elem in lista if elem[1] != 'Nada' else: 'None') + ']'
+        
     else:
         return repr(lista)
-
-def imprimir_lista(lista):
+    
+def imprimir_lista(lista, LINEAS):
     if isinstance(lista, list):
-        return '[' + ', '.join(imprimir_lista(item[1]) for item in lista) + ']'
+        return '[' + ', '.join(imprimir_lista(reemVariables([item], LINEAS, nLinea)[0][1], LINEAS) for item in lista) + ']'
     else:
         return str(lista)
+    
+def imprimir_inter(inter):
+    exp = ''
+    i = 0
+    while i < 3:
+        if inter[i][1] == 'Nada':
+            pass
+        else:
+            exp += str(inter[i][1])
+        if i + 1 < 3:
+            exp += ':' 
+        i += 1
+    return exp
 
 def depurarComentarios(clasificado: list) -> list:
     i = 0
@@ -965,18 +1311,45 @@ def depurarComentarios(clasificado: list) -> list:
     return clasificado
 
 def depurarNotacion(clasificado: list, EN: dict = estructuras_notacion) -> list:
+    #print(clasificado, '<- depurarNotacion arg')
     for e in EN:
+        #print(e, '<- e')
         n = len(e)
         i = 0
         while i < len(clasificado):
+            #print(i)
             seudoclasificado = tuple([j[0] for j in clasificado[i:i+n]])
             if seudoclasificado == e:
                 del clasificado[i:i+n]
                 i -= 1
             i += 1
+    #print(clasificado, '<- depurarNotacion return')
     return clasificado
 
-def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructuras_secundarias, EP: dict = estructuras_primarias):
+def semiIndices(clasificado: list, LINEAS: list, nLinea: int) -> list:
+    i = 0
+    while i < len(clasificado):
+        if clasificado[i][2] == 'VAR':
+            if i + 1 < len(clasificado):
+                if clasificado[i+1][2] == 'set':
+                    #print(clasificado, i, '<- clasificado, i')
+
+                    temp = str(clasificado[i][1]) + '_' + str(reemVariables(clasificado[i+1][1], LINEAS, nLinea)[0][1])
+
+                    clasificado[i][1] = temp
+
+                    del clasificado[i+1:i+2]
+                    i -= 1
+    
+        elif clasificado[i][2] == 'lista':
+            clasificado[i] = ['CONST', semiIndices(clasificado[i][1], LINEAS, nLinea), 'lista']
+        elif clasificado[i][2] == 'V-lista':
+            clasificado[i] = ['CONST', semiIndices(clasificado[i][1], LINEAS, nLinea), 'V-lista']
+
+        i += 1
+    return clasificado
+
+def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, EP: dict = estructuras_primarias, ES: dict = estructuras_secundarias):
     """"
         Toma como entrada una linea clasificada y evalúa las estructuras que tenga dentro a excepción de las que lleven a
         bloques identados y cuestiones que necesiten un enfoque aparte y mas robusto (ubicado en ejecutarCodigo)
@@ -984,11 +1357,15 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
     global VARIABLES, KeysVars
     #print(clasificado, '<- clasificado ejecutarGeneral')
 
+    clasificado = semiIndices(clasificado, LINEAS, nLinea)
+    #print(clasificado,'<- semiIndices General')
+
     clasificado = reemVariables(clasificado, LINEAS, nLinea)
     #print(clasificado,'<- reemVariables General')
 
     clasificado = evalExpresiones(clasificado, LINEAS)
     #print(clasificado, '<- evalExpresiones General')
+
 
     for e in ES:
         n = len(e)
@@ -1001,6 +1378,8 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
                 estructuraF = ES[seudoclasificado]
                 #print(seudoclasificado, estructuraF, sep='\n')
                 match estructuraF:
+                    case 'REEMPLAZAR':
+                        ...
                     case 'forComp':
                         #print(clasificado, i)
                         iterable = clasificado[i+4]
@@ -1015,9 +1394,9 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
                                 resultado.append(['CONST', iterable[1][j][1], iterable[1][j][2]])
                                 j += 1
                         #print(resultado, '<- resultado')
-                        clasificado[i] = ['CONST', resultado, 'list']
-                    case 'METODO':
+                        clasificado[i] = ['CONST', resultado, 'lista']
 
+                    case 'METODO': # Esto hay que borrarlo y pasarlo a evalFuncionesR
                         #print(clasificado, i)
                         #print(VARIABLES)
 
@@ -1120,7 +1499,7 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
                                 ...
                             case 'complex':
                                 ...
-                            case 'list':
+                            case 'lista':
                                     match clasificado[i+2][1]:
                                         case 'append':
                                             ...
@@ -1153,10 +1532,8 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
                 i -= 1 # Encuentra una estructura y retrocede, para después quedarse en el lugar que la encontró, por si en el clasificado reducido hay una en el mismo lugar
             i += 1
 
-    #print(clasificado, '<- clasificado')
+    #print(clasificado, '<- clasificado ejecutarGeneral')
     directiva = [] # directiva es el primer elemento de cada elemento en clasificado
-    #print(clasificado)
-    expresion = ''
 
     for i in clasificado:
         directiva.append(i[0])
@@ -1177,7 +1554,7 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
 
     except KeyError:
         ejecutar = None
-        
+    #print(directiva, '<- directiva')
     #print(ejecutar, '<- ejecutar')
 
     match ejecutar:
@@ -1185,33 +1562,9 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
             pass
 
         case 'ASIGNAR':
-            #print(clasificado, '<- clasificado ASIGNAR')
+            #print(clasificado, '<- clasificado ASIGNAR')       
 
-            if len(clasificado) > 3:
-                expresion = ''
-                for i in range(2, len(clasificado)):
-                    if clasificado[i][2] == 'str':
-                        expresion += f"'{clasificado[i][1]}'"
-
-                    elif clasificado[i][2] == 'int':
-                        expresion += str(clasificado[i][1])
-
-                    elif clasificado[i][2] == 'float':
-                        expresion += str(clasificado[i][1])
-
-                    elif clasificado[i][2] == 'complex':
-                        expresion += str(clasificado[i][1])
-
-                    elif clasificado[i][2] == 'list':
-                        expresion += str(clasificado[i][1])
-
-                    else:
-                        expresion += clasificado[i][1]
-
-            obj2 = clasificado[-1][1]
-            tipo = clasificado[-1][2]           
-
-            VARIABLES[clasificado[0][1]] = (obj2, tipo)
+            VARIABLES[(clasificado[0][1], contexto_)] = (clasificado[2][1], clasificado[2][2])
 
             KeysVars += [clasificado[0][1]]
 
@@ -1219,76 +1572,151 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, ES: dict = estructu
             #print('VARIABLES:', VARIABLES, sep='\n')
 
         case 'ASIGNAR_ELEM':
-            VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]] = clasificado[3]
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = clasificado[3]
 
         case 'SUMARLE':
-            VARIABLES[clasificado[0][1]] = (VARIABLES[clasificado[0][1]][0] + clasificado[2][1], VARIABLES[clasificado[0][1]][1])
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] + clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
 
         case 'SUMARLE_ELEM':
-            VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]] = ('CONST', VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][1] + clasificado[3][1], 'int' if VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float')
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] + clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
 
         case 'RESTARLE':
-            VARIABLES[clasificado[0][1]] = (VARIABLES[clasificado[0][1]][0] - clasificado[2][1], VARIABLES[clasificado[0][1]][1])
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] - clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
 
         case 'RESTARLE_ELEM':
-            VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]] = ('CONST', VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][1] - clasificado[3][1], 'int' if VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float')
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] - clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
         
         case 'MULTIPLICARLE':
-            VARIABLES[clasificado[0][1]] = (VARIABLES[clasificado[0][1]][0] * clasificado[2][1], VARIABLES[clasificado[0][1]][1])
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] * clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
 
         case 'MULTIPLICARLE_ELEM':
-            VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]] = ('CONST', VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][1] * clasificado[3][1], 'int' if VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float')
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] * clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
         
         case 'DIVIDIRLE':
-            VARIABLES[clasificado[0][1]] = (VARIABLES[clasificado[0][1]][0] / clasificado[2][1], VARIABLES[clasificado[0][1]][1])
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] / clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
 
         case 'DIVIDIRLE_ELEM':
-            VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]] = ('CONST', VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][1] / clasificado[3][1], 'float')
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] / clasificado[3][1], 'float']
         
         case 'ELEVARLE':
-            VARIABLES[clasificado[0][1]] = (VARIABLES[clasificado[0][1]][0] ** clasificado[2][1], VARIABLES[clasificado[0][1]][1])
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] ** clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
         
         case 'ELEVARLE_ELEM':
-            VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]] = ('CONST', VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][1] ** clasificado[3][1], 'int' if VARIABLES[clasificado[0][1]][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float')
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] ** clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
+        
+        case 'RADICARLE':
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] ** (1 / clasificado[2][1]), VARIABLES[(clasificado[0][1], contexto_)][1])
+        
+        case 'RADICARLE_ELEM':
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] ** (1 / clasificado[3][1]), 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
 
+        case 'RESTO':
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] % clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
+        
+        case 'RESTO_ELEM':
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] % clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
 
-        case 'while' | 'do while' | 'if' | 'elif' | 'else' | 'for' | 'foreach' | 'CONSTANTE' | 'goto':
+        case 'COCIENTE':
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] // clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
+        
+        case 'COCIENTE_ELEM':
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] // clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
+        
+        case 'BITS_DERECHA':
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] >> clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
+        
+        case 'BITS_DERECHA_ELEM':
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] >> clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
+        
+        case 'BITS_IZQUIERDA':
+            VARIABLES[(clasificado[0][1], contexto_)] = (VARIABLES[(clasificado[0][1], contexto_)][0] << clasificado[2][1], VARIABLES[(clasificado[0][1], contexto_)][1])
+        
+        case 'BITS_IZQUIERDA_ELEM':
+            VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]] = ['CONST', VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][1] << clasificado[3][1], 'int' if VARIABLES[(clasificado[0][1], contexto_)][0][clasificado[1][1][0][1]][2] == clasificado[3][2] == 'int' else 'float']
+
+        
+        
+        case 'while' | 'do while' | 'if' | 'elif' | 'else' | 'for' | 'foreach' | 'CONSTANTE' | 'goto' | 'del':
             pass
 
         case _:
             #print('ejecutarGeneral >> case _:')
             #print(clasificado)
             resumido = resumir(clasificado)
-            if re.match(r"C(,C)*(=C(,C)*)+", resumido):
-                asignados = []
-
-                for j, k in enumerate(reversed(clasificado)):
+            #print(resumido, '<- resumido')
+            if re.fullmatch(r"C(,C)*(=C(,C)*)+", resumido):
+                #print("Hace fullmatch")
+                for j, k in enumerate(reversed(clasificado)): # Buscamos el índice del último asignador
                     if k[1] in asignadores:
                         break
-                j = len(clasificado)-j-1
-                #print(j)
-                valores = []
+
+                #print(j, '<- j') 
+                #print(clasificado)
+
+                #cantIg = (len(clasificado) + 1) / (j + 1) - 1
+
+                j = len(clasificado)-j-1 # Como lo tenemos desde la derecha, lo pasamos desde la izquierda
+
+                #print(j, '<- j')
+
+                valores = [] # Lista de tuplas que contienen (VALOR, TIPO DE DATO)
+
+                asignados = [] # Variables a las cuales se le van a asignar un valor
                 temp = [] 
                 for i in range(0, len(clasificado), 2):
                     if i < j:
-                        temp.append(clasificado[i][1]) 
+                        if clasificado[i][2] == 'lista':
+                            for _ in range(clasificado[i][1][0][1]):
+                                temp.append('_')
+                        else:
+                            temp.append(clasificado[i][1]) 
+
                         if clasificado[i+1][1] in asignadores:
                             asignados += [temp]
                             temp = []
                     else:
-                        valores.append((clasificado[i][1], clasificado[i][2]))
+                        valores.append([clasificado[i][1], clasificado[i][2]])
 
                 #print(asignados, valores)
 
-                i = 0
-                while i < len(asignados):
-                    k = 0
-                    while k < len(asignados[0]):
-                        VARIABLES[asignados[i][k]] = (valores[k][0], valores[k][1])
-                        k += 1
-                    i += 1
+                #sys.exit()
+
+                if len(asignados[0]) <= len(valores):
+                    i = 0
+                    while i < len(asignados):
+                        k = 0
+                        while k < len(asignados[0]):
+                            VARIABLES[(asignados[i][k], contexto_)] = (valores[k][0], valores[k][1])
+                            k += 1
+                        i += 1
+
+                else:
+                    i = 0
+                    valores2 = []
+                    while i < len(valores):
+                        if valores[i][1] in iterables:
+                            for k in valores[i][0]:
+                                valores2.append([k[1], k[2]])
+                        else:
+                            valores2.append(valores[i])
+                        i += 1
+
+                    #print(asignados)
+                    #print(valores2)
+                    #print(clasificado)
+
+                    i = 0
+                    while i < len(asignados):
+                        k = 0
+                        while k < len(asignados[0]):
+                            VARIABLES[(asignados[i][k], contexto_)] = (valores2[k][0], valores2[k][1])
+                            k += 1
+                        i += 1
+                #print(valores2)
 
                 #print(VARIABLES)
+
+            
             else:
                 print(clasificado, '<- clasificado de sintaxis')
                 sys.exit()
@@ -1344,38 +1772,74 @@ def comprobarIdentacionAct(LINEAS, nLinea):
 
 def ejecutarMientras(fragmentoCodigo, LINEAS, nLinea):
     #print(fragmentoCodigo)
-    condicion = ejecutarGeneral(clasificar(fragmentoCodigo[0]), LINEAS, nLinea)
+    condicion = clasificar(fragmentoCodigo[0])
+
+    condicion = reemVariables(condicion, LINEAS, nLinea)
+    condicion = evalExpresiones(condicion, LINEAS)
+
     while condicion[1][1]:
-        if ejecutarCodigo(fragmentoCodigo[1:], nLinea=0):
+        if ejecutarCodigo(fragmentoCodigo[1:], nLinea=0)[1]:
             break
-        condicion = ejecutarGeneral(clasificar(fragmentoCodigo[0]), LINEAS, nLinea)
+        condicion = clasificar(fragmentoCodigo[0])
+
+        condicion = reemVariables(condicion, LINEAS, nLinea)
+        condicion = evalExpresiones(condicion, LINEAS)  
     #print(condicion, '<- condicion')
     return condicion[1][1]
 
 def ejecutarHaceMientras(fragmentoCodigo, LINEAS, nLinea):
     ejecutarCodigo(fragmentoCodigo[1:], nLinea=0)
     #print(fragmentoCodigo[1:])
-    condicion = ejecutarGeneral(clasificar(fragmentoCodigo[0]), LINEAS, nLinea)
+    condicion = clasificar(fragmentoCodigo[0])
+
+    condicion = reemVariables(condicion, LINEAS, nLinea)
+    condicion = evalExpresiones(condicion, LINEAS)
     #print(condicion)
 
     while condicion[2][1]:
-        if ejecutarCodigo(fragmentoCodigo[1:], nLinea=0):
+        if ejecutarCodigo(fragmentoCodigo[1:], nLinea=0)[1]:
             break
-        condicion = ejecutarGeneral(clasificar(fragmentoCodigo[0]), LINEAS, nLinea)
+        condicion = clasificar(fragmentoCodigo[0])
+
+        condicion = reemVariables(condicion, LINEAS, nLinea)
+        condicion = evalExpresiones(condicion, LINEAS)
     #print(condicion, '<- condicion')
     return condicion[2][1]
 
-def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
+def ejecutarCodigo(LINEAS: list, fin = None, nLinea: int = 0):
     global IMPORTADOS, KeysVars
-    ultimaCondicion = None
+    #print('Ejecutando:')
+    #print(LINEAS)
+    enClase = False
+    identadoClase = -1
+    ultimasCondiciones = [None, None, None, None, None, [['CONST', 'Nada', 'sintipo']]]
+
+    """
+        ultimasCondiciones
+
+            para | cada | mientras | hace mientras
+
+            salir 
+
+            continuar
+
+            retorno
+
+            si | sino si | sino
+
+            clasificado (VALOR)
+    """
+
     if fin == None:
         fin = len(LINEAS)
     #print(LINEAS, '<- LINEAS')
     while nLinea < len(LINEAS) and nLinea < fin:
         #print(nLinea, '<- nLinea')
-
+        if contarEspacios(LINEAS[nLinea]) <= identadoClase:
+            enClase = False
+            identadoClase = -1
+        #print(LINEAS, nLinea)
         clasificado = clasificar(LINEAS[nLinea])
-        #print('En función: ', enFuncion(LINEAS, nLinea))
 
         #print('** CLASIFICADO **')
         #print(clasificado, '**')
@@ -1396,25 +1860,51 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                 clasificado = depurarNotacion(clasificado)
                 #print(clasificado, '<- depurarNotacion')
 
-                #print(clasificado, '<- clasificado pre match ***')
+                #print(clasificado, '<- clasificado pre match ****')
                 if clasificado == []:
                     pass
                 else:
                     match clasificado[0][0]:
+                        case 'class':
+                            enClase = True
+                            identadoClase = contarEspacios(LINEAS[nLinea])
+                            clase = clasificado[1][1]
+
                         case 'def':
                             clasificado[1][2] = 'FUNCRETURN'
                             KeysVars += [clasificado[1][1]]
-                            ArgumentosDef = [clasificado[3:-2:2]]
+                            ArgumentosDef = [] # clasificado[3:-2:2]
+                            #print(clasificado, '<- clasificado case def')
+
+                            i = 3
+                            while i < len(clasificado) - 2:
+                                if clasificado[i][0] == ',':
+                                    pass
+                                elif clasificado[i][0] == '=':
+                                    pass
+                                elif clasificado[i][2] == 'VAR' and clasificado[i+1][0] == '=':
+                                    ArgumentosDef += [[clasificado[i], clasificado[i+2]]]
+                                    i += 2
+                                elif clasificado[i][2] == 'VAR':
+                                    ArgumentosDef += [[clasificado[i], False]]
+                                i += 1
+                            #print(ArgumentosDef, '<- ArgumentosDef')
+
                             #print(clasificado)
-                            #print(ArgumentosDef)
                             #print(nLinea)
                             fragmentoCodigo, AuxnLinea = seleccionarFragmento(LINEAS, nLinea)
                             #print(fragmentoCodigo, AuxnLinea, '<- fragmentoCodigo, AuxnLinea')
-                            
-                        
-                            
+                                           
                             #print(guardar, '<- guardar', clasificado[1][1])
-                            FUNCIONES[clasificado[1][1]] = (ArgumentosDef, nLinea, len(fragmentoCodigo)-1 + nLinea)
+
+                            if enClase:
+                                try:
+                                    CLASES[clase] += [(clasificado[1][1], (ArgumentosDef, nLinea))]
+                                except KeyError:
+                                    CLASES[clase] = [(clasificado[1][1], (ArgumentosDef, nLinea))]
+
+                            else:
+                                FUNCIONES[clasificado[1][1]] = (ArgumentosDef, fragmentoCodigo)
                             nLinea = AuxnLinea
                             #print(clasificado, nLinea)
                             #print(FUNCIONES, '<- FUNCIONES def')
@@ -1422,22 +1912,24 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                         case 'return':
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
                             clasificado = evalExpresiones(clasificado, LINEAS)
-
-                            #print(clasificado, '<- clasificado return')
-                            return clasificado[1:]    
-                            #print(fragmentoCodigo, nLinea)
+                            #print(clasificado)
+                            ultimasCondiciones = [None, None, None, 1, None, clasificado[1:]]
+                            #print(ultimasCondiciones, '<- ultimasCondiciones return')
+                            return ultimasCondiciones
+                            
 
                         case 'goto':
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
                             clasificado = evalExpresiones(clasificado, LINEAS)
 
                             #clasificado = ejecutarGeneral(clasificado)
-                            nLinea = clasificado[1][1] - 2 # -1 por el quilombo con los índices y -1 (otra vez) xq al final del while se suma 1 a nLinea
+                            nLinea = clasificado[1][1] - 2 # -1 por el quilombo con los índices y -1 (otra vez) xq al final del while se suma 1 a nLinea               
 
                         case 'for':
                             fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
                             #print('FOR:')
                             #print(clasificado)
+                            #print(fragmentoCodigo)
                             variablesFor = []
                             for i in clasificado:
                                 if i[2] == 'VAR':
@@ -1460,17 +1952,19 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
 
                             #print(fragmentoCodigo)
                             if len(variablesFor) >= 2:
-                                if iterable[2] == 'list':
+                                if iterable[2] in ('V-lista', 'lista'):
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
                                         for j in range(len(variablesFor)):
-                                            VARIABLES[variablesFor[j]] = (variable[1][j][1], variable[1][j][2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
-                                        if ultimaCondicion == 'c':
+                                            VARIABLES[(variablesFor[j], contexto_)] = (variable[1][j][1], variable[1][j][2])
+                                        ultimasCondiciones[0] = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
@@ -1480,12 +1974,14 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
                                         for j in range(len(variablesFor)):
-                                            VARIABLES[variablesFor[j]] = (variable[1][j][1], 'str')
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
-                                        if ultimaCondicion == 'c':
+                                            VARIABLES[(variablesFor[j], contexto_)] = (variable[1][j][1], 'str')
+                                        ultimasCondiciones[0] = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
@@ -1494,27 +1990,33 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
                                         for j in range(len(variablesFor)):
-                                            VARIABLES[variablesFor[j]] = (variable[1][j][1], variable[1][j][2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
-                                        if ultimaCondicion == 'c':
+                                            VARIABLES[(variablesFor[j], contexto_)] = (variable[1][j][1], variable[1][j][2])
+                                        ultimasCondiciones[0] = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
 
                             else:
-                                if iterable[2] == 'list':
+                                if iterable[2] in ('V-lista', 'lista'):
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
-                                        VARIABLES[variablesFor[0]] = (variable[1], variable[2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
-                                        if ultimaCondicion == 'c':
+                                        VARIABLES[(variablesFor[0], contexto_)] = (variable[1], variable[2])
+                                        #print(ultimasCondiciones, '<- ultimasCondiciones pre ejecutarCodigo')
+                                        ultimasCondiciones = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        #print(ultimasCondiciones, '<- ultimasCondiciones l')
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
@@ -1523,26 +2025,31 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
-                                        VARIABLES[variablesFor[0]] = (variable[1], 'str')
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
-                                        if ultimaCondicion == 'c':
+                                        VARIABLES[(variablesFor[0], contexto_)] = (variable[1], 'str')
+                                        ultimasCondiciones = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
+                                        
 
                                 else:
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
-                                        VARIABLES[variablesFor[0]] = (variable[1], variable[2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
-                                        if ultimaCondicion == 'c':
+                                        VARIABLES[(variablesFor[0], contexto_)] = (variable[1], variable[2])
+                                        ultimasCondiciones = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
@@ -1575,22 +2082,25 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
 
                             #print(fragmentoCodigo)
                             if len(variablesForeach) >= 2:
-                                if iterable[2] == 'list':
+                                if iterable[2] in ('V-lista', 'lista'):
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
                                         for j in range(len(variablesForeach)): 
-                                            VARIABLES[variablesForeach[j]] = (variable[1][j][1], variable[1][j][2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                            VARIABLES[(variablesForeach[j], contexto_)] = (variable[1][j][1], variable[1][j][2])
+                                        ultimasCondiciones = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
+                                        iterable[1][i] = ('CONST', VARIABLES[(variablesForeach[0], contexto_)][0], VARIABLES[(variablesForeach[0], contexto_)][1])
 
-                                        VARIABLES[nombreIterable] = (iterable[1], 'list')
+                                        VARIABLES[(nombreIterable, contexto_)] = (iterable[1], 'lista')
+                                        #print(ultimasCondiciones)
 
-                                        if ultimaCondicion == 'c':
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
@@ -1602,53 +2112,61 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
                                         for j in range(len(variablesForeach)): 
-                                            VARIABLES[variablesForeach[j]] = (variable[1][j][1], variable[1][j][2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                            VARIABLES[(variablesForeach[j], contexto_)] = (variable[1][j][1], variable[1][j][2])
+                                        ultimasCondiciones[0] = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
+                                        iterable[1][i] = ('CONST', VARIABLES[(variablesForeach[0], contexto_)][0], VARIABLES[(variablesForeach[0], contexto_)][1])
 
-                                        VARIABLES[nombreIterable] = (iterable[1], iterable[2])
-
-                                        if ultimaCondicion == 'c':
+                                        VARIABLES[(nombreIterable, contexto_)] = (iterable[1], iterable[2])
+                                        
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
 
                             else:
-                                if iterable[2] == 'list':
+                                if iterable[2] in ('V-lista', 'lista'):
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
-                                        VARIABLES[variablesForeach[0]] = (variable[1], variable[2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        #print(variable)
+                                        VARIABLES[(variablesForeach[0], contexto_)] = (variable[1], variable[2])
+                                        ultimasCondiciones = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
-                                        if ultimaCondicion == 'c':
+                                        iterable[1][i] = ['CONST', VARIABLES[(variablesForeach[0], contexto_)][0], VARIABLES[(variablesForeach[0], contexto_)][1]]
+                                        #print(ultimasCondiciones)
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
 
                                     #print(iterable)
-                                    VARIABLES[nombreIterable] = (iterable[1], 'list')
+                                    VARIABLES[(nombreIterable, contexto_)] = (iterable[1], 'lista')
 
                                 elif iterable[2] == 'str':
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
-                                        VARIABLES[variablesForeach[0]] = (variable[1], 'str')
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        VARIABLES[(variablesForeach[0], contexto_)] = (variable[1], 'str')
+                                        ultimasCondiciones = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
-                                        if ultimaCondicion == 'c':
+                                        iterable[1][i] = ('CONST', VARIABLES[(variablesForeach[0], contexto_)][0], VARIABLES[(variablesForeach[0], contexto_)][1])
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
@@ -1660,20 +2178,22 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                     for i in iterable[1]:
                                         cadena+=i
                                     iterable = ('CONST', cadena, 'str')
-                                    VARIABLES[nombreIterable] = (str(iterable[1]), 'str')
+                                    VARIABLES[(nombreIterable, contexto_)] = (str(iterable[1]), 'str')
 
                                 else:
                                     i = 0
                                     while i < len(iterable[1]):
                                         variable = iterable[1][i]
-                                        VARIABLES[variablesForeach[0]] = (variable[1], variable[2])
-                                        ultimaCondicion = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
+                                        VARIABLES[(variablesForeach[0], contexto_)] = (variable[1], variable[2])
+                                        ultimasCondiciones = ejecutarCodigo(fragmentoCodigo[1:], nLinea = 0)
 
-                                        iterable[1][i] = ('CONST', VARIABLES[variablesForeach[0]][0], VARIABLES[variablesForeach[0]][1])
-                                        if ultimaCondicion == 'c':
+                                        iterable[1][i] = ('CONST', VARIABLES[(variablesForeach[0], contexto_)][0], VARIABLES[(variablesForeach[0], contexto_)][1])
+                                        if ultimasCondiciones[2]:
                                             i += 1
-                                            ultimaCondicion = False
-                                        elif ultimaCondicion:
+                                            ultimasCondiciones[2] = False
+                                        elif ultimasCondiciones[3]:
+                                            return ultimasCondiciones
+                                        elif ultimasCondiciones[0]:
                                             break
                                         else:
                                             i += 1
@@ -1681,7 +2201,7 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                         #print(VARIABLES)
                                         #print(variable, '<- variable')
 
-                                    VARIABLES[nombreIterable] = (iterable[1], iterable[2])
+                                    VARIABLES[(nombreIterable, contexto_)] = (iterable[1], iterable[2])
                                         
                                     #print(iterable)
 
@@ -1691,7 +2211,8 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
 
                             fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
                             #print(clasificado)
-                            ultimaCondicion = ejecutarMientras(fragmentoCodigo, LINEAS, nLinea)
+                            ultimasCondiciones[0] = ejecutarMientras(fragmentoCodigo, LINEAS, nLinea)
+
                             #print(ultimaCondicion, '<- ultimaCondicion')
                         
                         case 'do':
@@ -1700,37 +2221,40 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
 
                             fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
                             #print(clasificado)
-                            ultimaCondicion = ejecutarHaceMientras(fragmentoCodigo, LINEAS, nLinea)
+                            ultimasCondiciones[0] = ejecutarHaceMientras(fragmentoCodigo, LINEAS, nLinea)
                             #print(ultimaCondicion, '<- ultimaCondicion')s
 
                         case 'break':
-                            ultimaCondicion = False
-                            #print('BREAK')
+                            ultimasCondiciones[1] = True
+                            ultimasCondiciones[0] = False
                             #print(clasificado, '<- clasificado')
-                            return True # not ultimaCondicion
+                            return ultimasCondiciones
 
                         case 'continue':
-                            return 'c'
+                            ultimasCondiciones[2] = True
+                            return ultimasCondiciones
 
                         case 'if':
+                            #print(clasificado, '<- clasificado if')
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
                             clasificado = evalExpresiones(clasificado, LINEAS)
 
-                            #print(clasificado, '<- clasificado')
+                            #print(clasificado, '<- clasificado if')
                             if clasificado[1][1]:
                                 pass # Se seguirá ejecutando con normalidad
 
                             else: # La condición es falsa, el número de linea (nLinea) es igual al final del bloque indentado
                                 fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
+                                #print(fragmentoCodigo)
                                 #print(nLinea)
-                            ultimaCondicion = clasificado[1][1]
-                            #print(clasificado, '<- ultimaCondicion')
+                            ultimasCondiciones[4] = clasificado[1][1]
+                            #print(clasificado, '<- clasificado if')
 
                         case 'elif':
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
                             clasificado = evalExpresiones(clasificado, LINEAS)
 
-                            if not ultimaCondicion:
+                            if not ultimasCondiciones[4]:
                                 #print(clasificado)
                                 clasificado = ejecutarGeneral(clasificado, LINEAS, nLinea) # Se encarga de evaluar la condición hasta hacerla un 'Verdadero' o 'Falso'
 
@@ -1740,8 +2264,8 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                                 else: # La condición es falsa, el número de linea (nLinea) es igual al final del bloque indentado
                                     fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
                                     #print(nLinea)
-                                ultimaCondicion = clasificado[1][1]
-                                #print(clasificado, '<- ultimaCondicion elif')
+                                ultimasCondiciones[4] = clasificado[1][1]
+                                #print(clasificado, '<- clasificado elif')
 
                             else: # La anterior condición era verdadera, con lo cual este bloque no se ejecuta
                                 fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
@@ -1749,10 +2273,11 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                         case 'else':
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
                             clasificado = evalExpresiones(clasificado, LINEAS)
-                            #print(ultimaCondicion, '<- ultimaCondicion else')
+                            #print(clasificado)
+                            #print(ultimasCondiciones, '<- ultimasCondicions else')
 
-                            if not ultimaCondicion:
-                                ultimaCondicion = None
+                            if not ultimasCondiciones[4]:
+                                ultimasCondiciones[4] = None
 
                             else:
                                 fragmentoCodigo, nLinea = seleccionarFragmento(LINEAS, nLinea)
@@ -1768,7 +2293,7 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                             #print(variablesMatch)
                             i = 0
                             while i < len(variablesMatch):
-                                variablesMatch[i] = VARIABLES[variablesMatch[i]][0]
+                                variablesMatch[i] = VARIABLES[(variablesMatch[i], contexto_)][0]
                                 i += 1
 
                         case 'case':
@@ -1799,38 +2324,90 @@ def ejecutarCodigo(LINEAS: list, fin: None = None, nLinea: int = 0):
                             pass
 
                         case 'import':
+
                             modulos = [i[1] for i in clasificado[1::2]]
-                            #print(modulos)
-                            for i in modulos:    
-                                comando = f"python {sys.argv[0]} s {i}.hsy" # "s" de segundo (no unidad de tiempo)
+                            for i in modulos:
                                 IMPORTADOS += [i]
                                 KeysVars += [i]
-                                SALIDA = ejecutar_comando_terminal(comando)
-
-
-                                #print(repr(SALIDA), '<- repr(SALIDA)')
-                                AUX_VARIABLES = ast.literal_eval(SALIDA)[0]
-                                #print(AUX_VARIABLES, '<- AUX_VARIABLES')
+                                comando = f"python Re_Hasya.py s {i}.hsy"
+                                SALIDA = ejecutar_comando_terminal(comando)[-2:]
+                                SALIDA[0] = ast.literal_eval(SALIDA[0])
+                                #print(SALIDA[0])
+                                AUX_VARIABLES = SALIDA[0][0]
+                                #print(AUX_VARIABLES)
                                 for j in AUX_VARIABLES:
-                                    VARIABLES[f"{i}.{j}"] = AUX_VARIABLES[j]
-                                    KeysVars += [f"{i}.{j}"]
+                                    VARIABLES[(f'{i}.{j}', contexto_)] = AUX_VARIABLES[j]
+                                    KeysVars += [(f'{i}.{j}', contexto_)]
+
+                                AUX_FUNCIONES = SALIDA[0][1]
+                                for j in AUX_FUNCIONES:
+                                    FUNCIONES[f'{i}.{j}'] = AUX_FUNCIONES[j]
+                                    KeysVars += [f'{i}.{j}']
+
+                            #print(FUNCIONES, '<- FUNCIONES')
                             #print(KeysVars, '<- KeysVars')
                             #print(VARIABLES, '<- VARIABLES')
                             #print(IMPORTADOS, '<- IMPORTADOS')
 
                         case 'from':
-                            ...
+                            #print(clasificado, '<- clasificado')
+                            modulo = clasificado[1][1]
+
+                            comando = f"python Re_Hasya.py s {modulo}.hsy"
+                            SALIDA = ejecutar_comando_terminal(comando)[-2:]
+                            SALIDA[0] = ast.literal_eval(SALIDA[0])
+
+                            if clasificado[-1][1] == '*':
+                                SALIDA = ejecutar_comando_terminal(comando)[-2:]
+                                SALIDA[0] = ast.literal_eval(SALIDA[0])
+
+                                for i in SALIDA[0][0]:
+                                    VARIABLES[(str(i), contexto_)] = SALIDA[0][0][i]
+                                    KeysVars += [(str(i), contexto_)]
+
+                                for i in SALIDA[0][1]:
+                                    FUNCIONES[str(i)] = SALIDA[0][1][i]
+                                    KeysVars += [str(i)]
+                            else:
+                                contenido = [i[1] for i in clasificado[3::2]]
+                                
+                                IMPORTADOS += [modulo]
+                                KeysVars += [modulo]
+
+                                #print(SALIDA[0][0], '<- SALIDA[0][0]')
+
+                                for i in contenido:
+                                    if i in SALIDA[0][0]:
+                                        VARIABLES[(str(i), contexto_)] = SALIDA[0][0][i]
+                                        KeysVars += [(str(i), contexto_)]
+                                    elif i in SALIDA[0][1]:
+                                        FUNCIONES[str(i)] = SALIDA[0][1][i]
+                                        KeysVars += [str(i)]
+
+
+                        case 'del':
+                            clasificado = reemVariables(clasificado, LINEAS, nLinea)
+                            clasificado = evalExpresiones(clasificado, LINEAS)
+                            #print(clasificado, '<- clasificado del')
+                            inter = []
+                            for i in clasificado[2][1]:
+                                if i[1] != 'Nada':
+                                    inter += [i[1]]
+                                else:
+                                    inter += [None]
+                            #print(inter)
+                            del VARIABLES[(clasificado[1][1], contexto_)][0][inter[0]:inter[1]:inter[2]]
 
                         case 'HALT':
                             sys.exit()
 
                         case _: # No se encontraron estructuras que lleven a bloques identados
-                            #print('clasificado ejecutarCodigo | ejecutarGeneral')
+                            #print('clasificado ejecutarCodigo')
                             #print(clasificado)
                             ejecutarGeneral(clasificado, LINEAS, nLinea)
 
         nLinea += 1
-    return 0
+    return ultimasCondiciones
 
 def procesarCodigo(codigo):
     codigoProcesado = []
@@ -2001,6 +2578,7 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
             case 1:
                 ... # Sintaxis
             case 2:
+                print(clasificado, i)
                 print(f"\"{clasificado[i][1]}\" No se encuentra definido.")
                 Mug = SugerenciasWF(clasificado[i][1], KeysVars)
                 #print(Mug)
@@ -2017,13 +2595,11 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
                     case 'FUNC' | 'FUNCRETURN':
                         TipoSug = 'función'
                     
-                print(f"¿Querrá escribir \"{Sug}\" ( {TipoSug} )? Certeza: [{CertezaSug}/10]")
+                print(f"¿Querrá escribir \"{Sug}\" ( {TipoSug} ) ? Certeza: [{CertezaSug}/10]")
 
-            case 3 | -3: # Añadir el dedentado
+            case 3:
                 if ERROR == 3:
                     print(f"Se esperaba un bloque identado despues de la estructura \"{clasificado[0][1]}\".")
-                elif ERROR == -3:
-                    ...
             case 4:
                 ...
             case 5:
@@ -2037,9 +2613,8 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
 def ComprobarErrores(LINEAS: list, nLinea: int = 0) -> bool:
     """
     Primero comprueba los diferentes tipos de errores a ver si existe alguno
-    Al primero que vea, lo ejecuta y se cierra la función
+    Al primero que vea, lo ejecuta y se cierra la función   
     """
-    #print('Comprobando...')
 
     while nLinea < len(LINEAS):
         clasificado = clasificar(LINEAS[nLinea])
@@ -2060,7 +2635,6 @@ def ComprobarErrores(LINEAS: list, nLinea: int = 0) -> bool:
             return ERROR
         nLinea += 1
     return False
-
 
 ### EJECUCIÓN ###
 
@@ -2088,47 +2662,37 @@ def EJECUTAR(archivo):
         #print(VARIABLES)
 
 def main(archivo: __file__):
-    try:
+    #try:
         EJECUTAR(archivo)
 
-    except FileNotFoundError:
-        print(f"El archivo {archivo} no se encuentra.")
+    #except FileNotFoundError:
+     #   print(f"El archivo {archivo} no se encuentra.")
 
 def ejecutar_comando_terminal(comando: str):
-    proceso = subprocess.run(comando, shell=True, check=True, text=True, stdout=subprocess.PIPE)
-    # Filtrar la salida para capturar solo el diccionario de VARIABLES
+    proceso = subprocess.run(comando, shell=True, check=False, text=True, stdout=subprocess.PIPE)
     #print(proceso.stdout.split('\n'))
-    salida = proceso.stdout.split('\n')[-2]
-    return salida
+    return proceso.stdout.split('\n')
 
-def DATOS_DOCUMENTO_2():
-
-    # Crear un diccionario con las variables
-    datos = [
-
-        VARIABLES
-
-    ]
-    return datos
-
-import time
 if __name__ == "__main__":
-    
-    #inicio = time.time()
+    #print(sys.argv)
 
-    if len(sys.argv) == 2:
+    if len(sys.argv) == 1:
+        archivo1 = "Hasya.hsy"
+        contenido1 = main(archivo1)
+
+    elif len(sys.argv) == 2:
         archivo1 = sys.argv[1]
         contenido1 = main(archivo1)
 
     elif len(sys.argv) == 3 and sys.argv[1] == "s":
         archivo2 = sys.argv[2]
         contenido2 = main(archivo2)
-        
-        # Generar datos basados en documento2.txt
-        datos = DATOS_DOCUMENTO_2()
+        #print(VARIABLES)
+        VARIABLES2 = {}
+        for i in VARIABLES.keys():
+            VARIABLES2.setdefault(i[0], VARIABLES[i])
+        print(json.dumps([VARIABLES2, FUNCIONES]))
 
-        # Imprimir los datos en formato JSON
-        print(json.dumps(datos))
-
-#print(f'{time.time() - inicio} s')
+#print(KeysVars)
+#print(CLASES)
 #print(VARIABLES)
