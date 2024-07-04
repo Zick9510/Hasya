@@ -1,7 +1,8 @@
 Nota a tener en cuenta:
 
     Para ejecutar un archivo de Hasya (.hsy) el archivo deberá estar en la misma carpeta que el archivo Re_Hasya.py, luego
-    en la terminal tendran que escribir python Ruta\Re_Hasya.py Ruta\TuArchivo.hsy.
+    en la terminal tendran que escribir python ruta\a\main\Re_Hasya.py ruta\a\tu\archivo.hsy. En caso de no especificar un
+    archivo a ejecutar, se ejecutará el archivo Hasya.hsy que se encuentra en la carpeta de Re_Hasya.py.
 
     <id>: Identificador
     <vd> o <valor>: Valor
@@ -12,9 +13,23 @@ Nota a tener en cuenta:
     <it>: Iterable
 
     Hasya esta fuertemente insipado en Python y ciertos toques de C.
-    En Hasya los bloques identados funcionan igual que en Python y en general todo es bastante
-    similar, como los comentarios simples, aunque los multilinea van #/ comentario /#
 
+    En Hasya los bloques identados sirven para definir el inicio y el fin de las estructuras y bloques de código:
+    No es lo mismo escribir
+
+    x = 2
+    si x == 2:
+        mostrar("x = 2")
+        mostrar("Fin sentencia 'si'")
+
+    A escribir
+
+    x = 2
+    si x == 2:
+        mostrar("x = 2")
+    mostrar("Fin sentencia 'si'")
+
+    # En este caso, el segundo mostrar se va a ejecutar siempre, mientras que en el primero solo se va a mostrar si x == 2
 
 
 ### DOCUMENTACIÓN
@@ -54,12 +69,105 @@ Variables:
         
         C. Si, una lista puede contener listas y otros tipos de variables
 
+    4. V - listas:
+        Las V - listas son listas que contienen variables, y al cambiar esas variables cambia el valor de las listas
+        Se declaran poniendo una v antes del primer corchete:
+            i = 3
 
+            lis = v[1, 2, i, 4]
 
-    4. Las cadenas de texto o strings, van entre comillas simples "'" # Próximamente se podrán usar las comillas dobles '"'
+            x = lis[2]
+
+            mostrar(x) # Acá veriamos un 3 como salida
+
+        Pero en este caso:
+
+            i = 3
+
+            lis = v[1, 2, i, 4]
+
+            i = 10
+
+            x = lis[2]
+
+            mostrar(x) # Veríamos un 10
+        
+        Ahora bien, a la hora de operar con listas es posible "enganchar" una variable a otra, haciendo que si cambia el valor de
+        la primera, cambie el valor de la segunda:
+            i = 3
+
+            lis = v[1, 2, i, 4]
+
+            x = lis[2] # En este momento, "x" queda enganchada a la variable "i"
+
+            i = 2 # Por lo tanto, "x" ahora no vale 3, sino 2
+
+            mostrar(x) # Entonces acá se vería un 2 en la terminal
+
+        Otro ejemplo con V - listas:
+            i = 3
+            vlis = v[1, 2, i] # No es necesario poner una "v" al principio de la variable, pero si a la lista
+
+            i = 2
+
+            lis = [vlis, [4, 5, 6]]
+
+            x = lis[0][2]
+
+            i = 10
+
+            mostrar(lis, x) # La salida es "[[1, 2, 10], [4, 5, 6]] 10"
+
+        Además, se pueden enganchar múltiples variables a una sola:
+
+            i = 3
+            lis = v[1, 2, i]
+
+            x1 = lis[2]
+
+            y1 = x1
+
+            i = 1
+
+            z1 = y1
+
+            mostrar(z1) # Vemos un 1
+
+    5. Las cadenas de texto o strings, van entre comillas simples "'" # Próximamente se podrán usar las comillas dobles '"'
         A. Al igual que las listas, se pueden obtener los caracteres de una cadena utilizando <it>[<x>]
 
         B. No se pueden reasignar los elementos de una cadena # Aunque es probable que se vea esta funcionalidad
+
+Operaciones:
+
+    Para operar con una variable es posible usar cualquiera de estos operadores:
+
+        1. Suma (+)
+        2. Resta (-)
+        3. Multiplicación (*)
+        4. División (/)
+        5. Potenciación (**)
+        6. Radicación (*/)
+        7. Resto (%)
+        8. Cociente (//)
+        9. Mover bits derecha (>>)
+        10. Mover bits izquierda (<<)
+
+        Si, hacen exactamente lo que estás pensando que hacen
+
+    Adicionalmente, estos operadores se pueden anteponer al signo igual para que el resultado se almacene
+    en la variable inicial:
+
+        1. Incrementar (+=)
+        2. Decrementar (-=)
+        3. Multiplicar (*=)
+        4. Dividir (/=)
+        5. Potenciar (**=)
+        6. Radicar (*/=)
+        7. Resto (%=)
+        8. Cociente (//=)
+        9. Mover bits derecha (>>=)
+        10. Mover bits izquierda (<<=)
 
 Instrucciones:
 
@@ -87,10 +195,11 @@ Instrucciones:
         x = 1
         mostrar(x, prueba.x) # En la terminal veo 1 2
 
-    3. Salir y Pasar
-        Salir se utiliza para salir de un bloque identado de un ciclo. (salir)
+    3. Salir
+        Salir se utiliza para salir de bloques identados como funciones, ciclos, condicionales, etc.
 
-        Pasar es una instrucción que literalmente no hace nada. (pasar)
+    4. Pasar
+        Pasar es una instrucción que literalmente no hace nada.
 
     4. DETENER
         Literalmente detiene completamente la ejecución del programa
@@ -236,86 +345,118 @@ Ciclos:
             usar funciones que modifiquen el iterable o creen uno nuevo, como "enumerar" o "rango" y/o similares.
             Tampoco esta permitido pasar como <it> un argumento diferente de una variable, por la misma razón.
 
-Funciones Incorporadas sin retorno:
+Funciones no anónimas:
 
-    1. Mostrar
-        Puede recibir múltiples argumentos y los imprimira en pantalla, cada argumento estará separado por un espacio y al final de la función se imprimira de manera
-        automática una nueva linea ("\n"). # Esto no se puede cambiar, aunque en próximas actualizaciones espero poder añadir la posiblidad de hacero
+    Una función no anónima es una sección del código al que se puede "llamar" utilizando su nombre, estas
+    funciones pueden contener argumentos, sin valores con los cuales trabaja la función y pueden ser 
+    diferentes en cada una de sus llamadas, permitiendo una alta verstílidad y volviendo el código más limpio
+    al reutilizar partes del mismo. Estos argumentos pueden ser de 2 tipos:
 
-Funciones Incorporadas con retorno
+        Posisicionales o no predefinidos:
 
-    1. Ingresar
-    Puede recibir un argumento y lo imprimira en pantalla, luego esperara a que el usuario ingrese un texto y
-    presione enter para enviarlo
+            Cuando se llama una función se tiene que especificar su valor, ya sea por medio de "nombre_Argumento = Valor"
+            o escribiendo directamente el valor en el lugar al cual se le corresponde la llamada. Ejemplo:
 
-    2. Largo
-        Su argumento es un <it> y devuelve su longitud
+                def suma(n1 , n2: int, n3 = 3, n4: int = 4) -> int: # En este ejemplo, n1 y n2 son argumentos posicionales
+                    retorno n1 + n2 + n3 + n4
 
-    3. Invertir
-        Toma un <it> y lo revierte, dejando los últimos elementos como los primeros y viceversa
+                suma(1, 2) # Se le asigna el valor 1 a n1 y 2 a n2, si se queire especificar cual es el valor 
+                           # para n1 y cual para n2 se debe hacer de la siguiente manera.
 
-    4. Rango # No la película
-        Puede tomar hasta 3 argumentos y funciona de la siguiente manera:
-            Con 1 argumento devuelve una lista desde el 0 hasta ese <x>
-            Con 2 la lista comienza en el primero y sigue hasta el segundo (sin incluir el segundo)
-            Con 3 funciona similar al 2, pero el tercero indica cada cuantos elementos se saltea
+                suma(n1=1, n2=2) # De esta forma, se puede prescindir del orden de los argumentos en la llamada (suma(n2=2, n1=1) es quivalente)
+            
+        Clave o predefinidos:
+
+            Siguiendo el ejemplo anterior, n3 y n4 serían argumentos clave, ya que no es necesario especificar su valor a la
+            hora de llamar la función, y al no hacerlo, éstos tomaran el valor preestablecido, en este caso, n3 y n4 valdrán
+            3 y 4 respectivamente. Una vez más, se puede modificar sus valores al usar "n3=10" o siguiendo el orden de 
+            la llamada:
+            
+            suma(1, 2, 10) # Al no establecer el valor de n4, éste valdra 4, mientras que el resto valdrá 1, 2 y 10 respectivamente
+            suma(1, 2, n3=10) # Ambas provocan el mismo resultado, 17
+
+            Es posible modificar el valor de n4 dejando el de n3 como su valor preestablecido, nuevamente usando "n4=20"
+                
+
+    Funciones Incorporadas con retorno distinto de Nada
+
+        1. Ingresar
+            Puede recibir un argumento y lo imprimira en pantalla, luego esperara a que el usuario ingrese un texto y
+            presione enter para enviarlo
+
+        2. Largo
+            Su argumento es un <it> y devuelve su longitud
+
+        3. Invertir
+            Toma un <it> y lo revierte, dejando los últimos elementos como los primeros y viceversa
+
+        4. Rango # No la película
+            Puede tomar hasta 3 argumentos y funciona de la siguiente manera:
+                Con 1 argumento devuelve una lista desde el 0 hasta ese <x>
+                Con 2 la lista comienza en el primero y sigue hasta el segundo (sin incluir el segundo)
+                Con 3 funciona similar al 2, pero el tercero indica cada cuantos elementos se saltea
+            
+        5. Matriz
+            Toma un <it> como primer argumento y un <x> como segundo, el primero marca las dimensiones y el segundo es
+            el elemento con el cual rellenar todas las casillas
         
-    5. Matriz
-        Toma un <it> como primer argumento y un <x> como segundo, el primero marca las dimensiones y el segundo es
-        el elemento con el cual rellenar todas las casillas
-    
-    6. Enumerar
-        Su argumento es un <it> y devuelve una lista de listas (o parejas) tales que el primer elemento de la pareja
-        indica el índice del segundo elemento de la pareja, la lista general está ordenada según los indices de menor a mayor
-    
-    7. Todos
-        Ingresa un <it> como argumento y devuelve 1 si todos sus elementos son verdaderos, devuelve 0 si alguno es falso
-
-    8. Alguno
-        Ingresa un <it> y devuelve 1 si alguno de sus elementos es verdadero, devuelve 0 si todos son falsos
+        6. Enumerar
+            Su argumento es un <it> y devuelve una lista de listas (o parejas) tales que el primer elemento de la pareja
+            indica el índice del segundo elemento de la pareja, la lista general está ordenada según los indices de menor a mayor
         
+        7. Todos
+            Ingresa un <it> como argumento y devuelve 1 si todos sus elementos son verdaderos, devuelve 0 si alguno es falso
 
-Funciones del usuario:
+        8. Alguno
+            Ingresa un <it> y devuelve 1 si alguno de sus elementos es verdadero, devuelve 0 si todos son falsos
 
-    Las funciones son útiles cuando se quiere ejecutar determinada sección del código varias veces, a veces cambiando ciertos
-    valores, un ejemplo sería:
+        9. Mapear
+            Toma como argumento una función y un iterable, aplica esa función a cada elemento del iterable y retorna el iterable modificado
+        
+        10. Filtrar
+            Su primer argumento es una función y su segundo un iterable, devuelve un iterable con los elementos que retornaron 
+            un valor verdadero al ser pasados como argumentos a la función
 
-    def f(x):
-        # Aca podes poner más cosas, las funciones pueden tener más lineas 
-        retorno x**2 # Aca x, el argumento, se eleva al cuadrado y se retorna para reemplazarse en el lugar en el que se llamo la función
+        11. Lista
+            Toma un <it> y lo intenta convertir  en lista, en caso de las cadenas, separando sus elementos
+        
+        12. Relu
+            Toma un número y devuelve 0 si este número es menor a 0, sino, devuelve el valor del número
 
-    Para definir una función, se utiliza la palabra clave def.
-    Las funciones pueden o no recibir argumentos. # Son parámetros con los cuales opera la función
-    Las funciones pueden retornar valores. # Son valores que se reemplazan en el lugar donde se llamó la función
+        13. Aplanar
+            Ingresa un <it> y retorna una lista con los elementos del <it> sin las listas que los encapsulaban
+            
+            (ej [1, 2, [3, 4, [5, 6]]] -> [1, 2, 3, 4, 5, 6])
+            
+    Funciones Incorporadas con retorno Nada:
 
-    def suma(n1, n2):
-        resultado = n1 + n2
-        retorno resultado
+        1. Mostrar
+            Puede recibir múltiples argumentos y los imprimira en pantalla, cada argumento estará separado por un espacio y al final de la función se imprimira de manera
+            automática una nueva linea ("\n").
 
-    mostrar(suma(3, 4)) # En la terminal veríamos un 7, ya que "suma(3, 4)" se reemplaza con el retorno, que en este caso es 7
+    Funciones del usuario:
 
-    Advertencia:
-        Al llamar a una función, reescribira el valor de sus argumentos según los valores que le
-        pasemos:
-            h = 3
+        Las funciones son útiles cuando se quiere ejecutar determinada sección del código varias veces, a veces cambiando ciertos
+        valores, un ejemplo sería:
 
-            def hola(h):
-                mostrar(h)
-                retorno h
+        def f(x):
+            # Aca podes poner más cosas, las funciones pueden tener más lineas 
+            retorno x**2 # Aca x, el argumento, se eleva al cuadrado y se retorna para reemplazarse en el lugar en el que se llamo la función
 
-            hola(2)
+        Para definir una función, se utiliza la palabra clave def.
+        Las funciones pueden o no recibir argumentos. # Son parámetros con los cuales opera la función
+        Las funciones pueden retornar valores. # Son valores que se reemplazan en el lugar donde se llamó la función
 
-            # Para este punto del código, h vale 2, no 3
+        def suma(n1, n2):
+            resultado = n1 + n2
+            retorno resultado
 
-        Próximamente se va a corregir este error
+        mostrar(suma(3, 4)) # En la terminal veríamos un 7, ya que "suma(3, 4)" se reemplaza con el retorno, que en este caso es 7
 
-Otra nota a tener en cuenta:
 
-    Generalmente, Hasya "sabe" interpretar ciertas secciones del código a favor del programador, por ejemplo, si
-    se tiene una función que retorna 3 valores y se procede así:
 
-    a, b = FuncionQueRetorna3Valores()
+Sobre el contexto de las variables
 
-    El tercer valor será descartado, y el primer y segundo valor serán asignados. Esta forma de operar es posible, pero
-    hay que tener bastante cuidado al usarla, aunque se espera que sea completamente viable y natural usarla para las 
-    próximas versiones. Cabe aclarar que esto de asignar menos valores de los que debería funciona en ciertas áreas.
+    El contexto de una variable se refiere a la sección del código donde "vive", ya sea en una función o en todo el 
+    programa. Esto permite definir variables y utilizar su mismo identificador en por ejemplo, los argumentos de una 
+    función, y ambos van a ser independientes entre si, sin temor a que uno sobreescriba al otro.
