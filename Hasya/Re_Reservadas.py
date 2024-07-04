@@ -9,6 +9,7 @@ toke = {
     '*': '*',
     '/': '/',
     '**': '**',
+    '*/': '*/',
     '%': '%',
     '//': '//',
 
@@ -16,18 +17,13 @@ toke = {
     '|': '|',
     
     # LÓGICOS
-
-    ' y ': ' and ',
-    ' o ': ' or ',
-    ' no ': ' not ',
     
-    '&&': ' and ',
-    '||': ' or ',
-    '!': ' not ',
+    '&&': 'and',
+    '||': 'or',
+    '!': 'not',
 
     # CONDICIONES
 
-    'en': 'in',
     '==': '==',
     '!=': '!=',
     '>': '>',
@@ -58,6 +54,30 @@ toke = {
     '*=': '*=',
     '/=': '/=',
     '**=': '**=',
+    '*/=': '*/=',
+    '>>=': '>>=',
+    '<<=': '<<=',
+    '%=': '%=',
+    '//=': '//=',
+
+}
+
+to = sorted(toke, key=len, reverse=True)
+tok = {}
+for i in to:
+    tok.setdefault(i, toke[i])
+
+keysw = {
+
+    # CONDICIONES
+
+    'en': 'in',
+
+    # LÓGICOS
+
+    'y': 'and',
+    'o': 'or',
+    'no': 'not',
 
     # ESTRUCTURAS
 
@@ -71,6 +91,7 @@ toke = {
     'sino si': 'elif',
     'sino': 'else',
 
+    'clase': 'class',
     'def':'def',
 
     'capta':'match',
@@ -88,20 +109,23 @@ toke = {
     'ir a': 'goto',
 
     'retorno': 'return',
-    'retorna': 'return',
 
     'DETENER': 'HALT',
     
-    # OTRAS PALABRAS CLAVE
-    
+    'del': 'del',
 }
-to = sorted(toke, key=len, reverse=True)
-tok = {}
-for i in to:
-    tok.setdefault(i, toke[i])
+
+ke = sorted(keysw, key=len, reverse=True)
+key = {}
+for i in ke:
+    key.setdefault(i, keysw[i])
+
+simb = {
+
+}
 
 funciones = {
-    'mostrar': 'print',
+    
     
 }
 fu = sorted(funciones, key=len, reverse=True)
@@ -111,6 +135,8 @@ for i in fu:
 
 funcionesReturn = {
     
+    # Retornan Algo:
+
     'ingresar': 'input',
     'largo': 'len',
     'invertir': 'reversed',
@@ -121,15 +147,19 @@ funcionesReturn = {
     'todos': 'all',
     'alguno': 'any',
     'relu': 'relu',
+    'mapear': 'map',
+    'filtrar': 'filter',
+    'aplanar':'flatten',
 
+    # Retornan Nada:
+
+    'mostrar': 'print', 
 }
+
 funcRet = sorted(funcionesReturn, key=len, reverse=True)
 funcReturn = {}
 for i in funcRet:
     funcReturn.setdefault(i, funcionesReturn[i])
-
-funcReturnU = {}
-funcU = {}
 
 meto = {
     
@@ -209,8 +239,9 @@ simb = {
     '<->': 'si solo si', # Lo mismo que el anterior pero y viceversa
     '^': 'y', # Y
     'v': 'o', # O
+    'xor': 'xor', 
     '¬': 'negado', # Negación
-    'A': 'for each', # Para cada
+    'A': 'para todo', # Para cada
     'E': 'existe', # Existe
     'E*': 'no existe', # No existe
     'E!': 'existe único', # Existe un único
@@ -218,24 +249,21 @@ simb = {
     '|': 'tal que', # Tal que
     '{': '{', # xd
     '}': '}', # xd**2
-    'O*': 'C_VACIO', # Conjunto vacío = {}
+
     'e': 'pertenece', # Pertenece
     'e*': 'no pertenece', # No pertenece
-    'c=*': 'incluye y !=', # Se incluye y no es igual
-    'c=': 'incluye o ==', # Se incluye o es igual
-    'c': 'inluye', # Se incluye
+    'C*': 'incluye!=', # Se incluye y no es igual
+    'C=': 'incluye==', # Se incluye o es igual
+    'C': 'incluye', # Se incluye
 
-    'U': 'U', # Unión
-    'U*': 'U*', # Conjunción
-    '\\': '\\', # wtf?
+    '*': 'conjugado', # Eso crack
 
-    '-->': '-->',
-    '->>': '->>',
-    '+->': '+->',
-    '|_': '|_',
-    '_|': '_|',
-    '|_*': '|_*',
-    '_|*': '_|*',
+    'U': 'union', # Unión
+    'U*': 'interseccion', # Conjunción
+
+
+    'V': 'verdadero',
+    'F': 'falso',
 
     '==': '==',
     '!=': '!=',
@@ -243,6 +271,14 @@ simb = {
     '<': '<',
     '>=': '>=',
     '<=': '<=',
+
+    ',': ',',
+
+    'N': 'N', # Cuenta el 0
+    'Z': 'Z',
+    'Q': 'Q',
+    'I': 'I',
+    'R': 'R',
 
 }
 sim = sorted(simb, key=len, reverse=True)
