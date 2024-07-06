@@ -406,10 +406,11 @@ def agruparTokens(tokens: list) -> list:
     for it, token in enumerate(tokens):
         vlista = False
 
-        if token[1] == 'v':
-            vlista = True
+        if token[1] == 'v' and it + 1 < len(tokens):
+            if tokens[it+1][0] == '[':
+                vlista = True
 
-        elif token[0] == '[' or token[0] == '{':
+        if token[0] == '[' or token[0] == '{':
             # Si encontramos un corchete o llave izquierdo, comenzamos una nueva lista o set
             if vlista and token[0] == '[':
                 tokens.pop(it-1)
@@ -457,12 +458,15 @@ def agruparTokens(tokens: list) -> list:
 
     return resultado
 
-def combinarTokens(tokens: list) -> list:
+def combinarTokensVlistas(tokens: list) -> list:
     i = 0
     while i < len(tokens) - 1:
         if tokens[i][0] == 'else' and tokens[i+1][0] == 'if':
             tokens[i] = ['elif', 'elif', 'TOK']
-            del tokens[i+1:i+2]
+            tokens.pop(i+1)
+        if tokens[i][1] == 'v' and tokens[i+1][2] == 'lista':
+            tokens[i+1][2] = 'V-lista'
+            tokens.pop(i)
         i += 1
     return tokens
 
@@ -515,8 +519,10 @@ def clasificar(texto: str):
             print(tokens)
             sys.exit()
 
+    #print(tokens, '<- tokens')
     tokens = agruparTokens(tokens)
-    tokens = combinarTokens(tokens)
+    #print(tokens, '<- tokens')
+    tokens = combinarTokensVlistas(tokens)
     #print(tokens, '<- tokens')
 
     return tokens
@@ -597,9 +603,11 @@ def reemVariables(clasificado: list, LINEAS: list, nLinea: int, VARIABLES: dict 
     #print(clasificado, '<- clasificado reemVariables')
 
     i = 0
+
+    Rp = False
+
     while i < len(clasificado):
         #print(i, '<- i reemVariables')
-        Rp = False
         
         if clasificado[i][2] == 'VAR':
             Rp = True
@@ -607,10 +615,11 @@ def reemVariables(clasificado: list, LINEAS: list, nLinea: int, VARIABLES: dict 
             if i + 1 < len(clasificado):
                 if clasificado[i+1][2] == 'set':
                     Rp = False
-     
+
             for j in clasificado[i:]:
                 if j[1] in asignadores:
                     Rp = False
+                    break
 
             if clasificado[0][0] == 'for':
                 if ['in', 'en', 'TOK'] not in clasificado[:i]:
@@ -636,8 +645,8 @@ def reemVariables(clasificado: list, LINEAS: list, nLinea: int, VARIABLES: dict 
         elif clasificado[i][2] == 'lista':
             clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'lista']
         
-        elif clasificado[i][2] == 'V-lista':
-            clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'V-lista']
+        #elif clasificado[i][2] == 'V-lista':
+            #clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'V-lista']
 
         elif clasificado[i][2] == 'INTER':
             clasificado[i] = ['CONST', reemVariables(clasificado[i][1], LINEAS, nLinea), 'INTER']
@@ -648,6 +657,8 @@ def reemVariables(clasificado: list, LINEAS: list, nLinea: int, VARIABLES: dict 
         #print(i, '<- i', Rp)
 
         if Rp:
+            Rp = False
+            #print('Data Rp reemVariables')
             #print(VARIABLES, contexto_)
             #print(clasificado, i)
             if (clasificado[i][1], contexto_) not in VARIABLES:
@@ -982,7 +993,7 @@ def evalFuncionesR(clasificado: list, LINEAS: list) -> list:
                                         case 'INTER':
                                             print(imprimir_inter(copiaclasificado[k][1]), end=' ')
                                         case _:
-                                            print(clasificado, j, '<- clasificado, j MOSTRAR')
+                                            print(clasificado, k, '<- clasificado, j MOSTRAR')
                                             ...
 
                             print()
@@ -1041,17 +1052,12 @@ def idenExpresiones(clasificado: list) -> list:
     fin = False
     #print(clasificado, '<- clasificado')
     while i < len(clasificado):
-        #print('pre:', inicio, fin)
+        #print('pre:', inicio, fin, i)
         if clasificado[i][2] in tipos_de_variables:
             #print('tipos_de_variables', i)
             if inicio is False:
                 inicio = i
                 fin = False
-
-            """elif clasificado[i][2] == 'VAR':
-            if inicio is False:
-                inicio = i
-                fin = False"""
 
         elif clasificado[i][1] in oPosibles:
             #print('oPosibles', i)
@@ -1103,7 +1109,7 @@ def idenExpresiones(clasificado: list) -> list:
 
 
 def evalExpresiones(clasificado: list, LINEAS) -> list:
-    #print(clasificado, ' <- clasificado evalExpresion 1')
+    #print(clasificado, ' <- clasificado evalExpresiones 1')
 
     # Funciones con return (Nada incluido)
     clasificado = evalFuncionesR(clasificado, LINEAS)
@@ -1554,6 +1560,7 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, EP: dict = estructu
 
     except KeyError:
         ejecutar = None
+
     #print(directiva, '<- directiva')
     #print(ejecutar, '<- ejecutar')
 
@@ -1724,16 +1731,6 @@ def ejecutarGeneral(clasificado: list, LINEAS: list, nLinea, EP: dict = estructu
 
     return clasificado
 
-def contarEspacios(texto: str) -> int:
-    espacios = 0
-    try:
-        while texto[espacios] == ' ':
-            espacios += 1
-        return espacios
-    except:
-        if texto == ' '*len(texto): return len(texto)
-        else: return 0
-
 def seleccionarFragmento(LINEAS, nLinea):
     #print(LINEAS, nLinea)
     nivelIdentado = contarEspacios(LINEAS[nLinea])
@@ -1753,6 +1750,16 @@ def seleccionarFragmento(LINEAS, nLinea):
     #print(fragmentoCodigo, nLinea, '<- seleccionarFragmento return')
     return fragmentoCodigo, nLinea
 
+def contarEspacios(texto: str) -> int:
+    espacios = 0
+    try:
+        while texto[espacios] == ' ':
+            espacios += 1
+        return espacios
+    except:
+        if texto == ' '*len(texto): return len(texto)
+        else: return 0
+
 def comprobarIdentacionAct(LINEAS, nLinea):
     identado = None
     n = 1
@@ -1760,13 +1767,13 @@ def comprobarIdentacionAct(LINEAS, nLinea):
         n += 1
 
     if contarEspacios(LINEAS[nLinea]) < contarEspacios(LINEAS[nLinea+n]):
-        identado = 1 # Aumento
+        identado = 1 # Aumentó
 
     elif contarEspacios(LINEAS[nLinea]) == contarEspacios(LINEAS[nLinea+n]):
         identado = 0 # Se mantuvo igual
 
     else:        
-        identado = -1 # Bajo
+        identado = -1 # Bajó
 
     return identado
 
@@ -1830,7 +1837,7 @@ def ejecutarCodigo(LINEAS: list, fin = None, nLinea: int = 0):
             clasificado (VALOR)
     """
 
-    if fin == None:
+    if fin is None:
         fin = len(LINEAS)
     #print(LINEAS, '<- LINEAS')
     while nLinea < len(LINEAS) and nLinea < fin:
@@ -1873,7 +1880,7 @@ def ejecutarCodigo(LINEAS: list, fin = None, nLinea: int = 0):
                         case 'def':
                             clasificado[1][2] = 'FUNCRETURN'
                             KeysVars += [clasificado[1][1]]
-                            ArgumentosDef = [] # clasificado[3:-2:2]
+                            ArgumentosDef = []
                             #print(clasificado, '<- clasificado case def')
 
                             i = 3
@@ -1886,7 +1893,7 @@ def ejecutarCodigo(LINEAS: list, fin = None, nLinea: int = 0):
                                     ArgumentosDef += [[clasificado[i], clasificado[i+2]]]
                                     i += 2
                                 elif clasificado[i][2] == 'VAR':
-                                    ArgumentosDef += [[clasificado[i], False]]
+                                    ArgumentosDef += [[clasificado[i], 0]]
                                 i += 1
                             #print(ArgumentosDef, '<- ArgumentosDef')
 
@@ -2323,56 +2330,98 @@ def ejecutarCodigo(LINEAS: list, fin = None, nLinea: int = 0):
                         case 'pass':
                             pass
 
-                        case 'import':
+                        case 'import' | 'from':
 
-                            modulos = [i[1] for i in clasificado[1::2]]
-                            for i in modulos:
-                                IMPORTADOS += [i]
-                                KeysVars += [i]
-                                comando = f"python Re_Hasya.py s {i}.hsy"
-                                SALIDA = ejecutar_comando_terminal(comando)[-2:]
-                                SALIDA[0] = ast.literal_eval(SALIDA[0])
-                                #print(SALIDA[0])
-                                AUX_VARIABLES = SALIDA[0][0]
-                                #print(AUX_VARIABLES)
-                                for j in AUX_VARIABLES:
-                                    VARIABLES[(f'{i}.{j}', contexto_)] = AUX_VARIABLES[j]
-                                    KeysVars += [(f'{i}.{j}', contexto_)]
+                            if clasificado[0][0] == 'import':
+                                modulos = []
+                                i = 1
+                                comos = []
+                                while i < len(clasificado):
+                                    if clasificado[i][2] == 'VAR':
+                                        comos.append(clasificado[i][1])
+                                    elif clasificado[i][0] == 'as':
+                                        comos.append(clasificado[i+1][1])
+                                        modulos += [comos]
+                                        comos = []
+                                        i += 2
+                                    elif clasificado[i][0] == ',':
+                                        if len(comos) == 1:
+                                            modulos += [[comos[0], None]]
+                                            comos = []
+                                        else:
+                                            modulos += [comos]
+                                            comos = []
+                                    
+                                    i += 1
 
-                                AUX_FUNCIONES = SALIDA[0][1]
-                                for j in AUX_FUNCIONES:
-                                    FUNCIONES[f'{i}.{j}'] = AUX_FUNCIONES[j]
-                                    KeysVars += [f'{i}.{j}']
+                                #print(comos)
+                            
+                                if comos:
+                                    if len(comos) == 1:
+                                        modulos += [[comos[0], None]]
+                                        comos = []
+                                    else:
+                                        modulos += [comos]
+                                        comos = []
 
-                            #print(FUNCIONES, '<- FUNCIONES')
-                            #print(KeysVars, '<- KeysVars')
-                            #print(VARIABLES, '<- VARIABLES')
-                            #print(IMPORTADOS, '<- IMPORTADOS')
-
-                        case 'from':
-                            #print(clasificado, '<- clasificado')
-                            modulo = clasificado[1][1]
-
-                            comando = f"python Re_Hasya.py s {modulo}.hsy"
-                            SALIDA = ejecutar_comando_terminal(comando)[-2:]
-                            SALIDA[0] = ast.literal_eval(SALIDA[0])
-
-                            if clasificado[-1][1] == '*':
-                                SALIDA = ejecutar_comando_terminal(comando)[-2:]
-                                SALIDA[0] = ast.literal_eval(SALIDA[0])
-
-                                for i in SALIDA[0][0]:
-                                    VARIABLES[(str(i), contexto_)] = SALIDA[0][0][i]
-                                    KeysVars += [(str(i), contexto_)]
-
-                                for i in SALIDA[0][1]:
-                                    FUNCIONES[str(i)] = SALIDA[0][1][i]
-                                    KeysVars += [str(i)]
-                            else:
-                                contenido = [i[1] for i in clasificado[3::2]]
+                                #print(modulos)
                                 
-                                IMPORTADOS += [modulo]
-                                KeysVars += [modulo]
+                                for i, k in modulos:
+                                    #print(i, k)
+                                    if k is None:
+                                        IMPORTADOS += [i]
+                                        KeysVars += [i]
+                                    else:
+                                        IMPORTADOS += [k]
+                                        KeysVars += [k]
+                                    comando = f"python Re_Hasya.py s {i}.hsy"
+                                    SALIDA = ejecutar_comando_terminal(comando)[-2:]
+                                    #print(SALIDA, '<- SALIDA')
+                                    #print(SALIDA[0], '<- SALIDA[0]')
+                                    SALIDA[0] = ast.literal_eval(SALIDA[0])
+                                    #print(SALIDA[0])
+                                    AUX_VARIABLES = SALIDA[0][0]
+                                    #print(AUX_VARIABLES)
+                                    for j in AUX_VARIABLES:
+                                        if k is None:
+                                            VARIABLES[(f'{i}.{j}', contexto_)] = AUX_VARIABLES[j]
+                                            KeysVars += [(f'{i}.{j}', contexto_)]
+                                        else:
+                                            VARIABLES[(f'{k}.{j}', contexto_)] = AUX_VARIABLES[j]
+                                            KeysVars += [(f'{k}.{j}', contexto_)]
+
+                                    AUX_FUNCIONES = SALIDA[0][1]
+                                    for j in AUX_FUNCIONES:
+                                        if k is None:
+                                            FUNCIONES[f'{i}.{j}'] = AUX_FUNCIONES[j]
+                                            KeysVars += [f'{i}.{j}']
+                                        else:
+                                            FUNCIONES[f'{k}.{j}'] = AUX_FUNCIONES[j]
+                                            KeysVars += [f'{k}.{j}']
+
+                            elif clasificado[0][0] == 'from':
+                                modulo = clasificado[1][1]
+
+                                comando = f"python Re_Hasya.py s {modulo}.hsy"
+                                SALIDA = ejecutar_comando_terminal(comando)[-2:]
+                                SALIDA[0] = ast.literal_eval(SALIDA[0])
+
+                                if clasificado[-1][1] == '*':
+                                    SALIDA = ejecutar_comando_terminal(comando)[-2:]
+                                    SALIDA[0] = ast.literal_eval(SALIDA[0])
+
+                                    for i in SALIDA[0][0]:
+                                        VARIABLES[(str(i), contexto_)] = SALIDA[0][0][i]
+                                        KeysVars += [(str(i), contexto_)]
+
+                                    for i in SALIDA[0][1]:
+                                        FUNCIONES[str(i)] = SALIDA[0][1][i]
+                                        KeysVars += [str(i)]
+                                else:
+                                    contenido = [i[1] for i in clasificado[3::2]]
+                                    
+                                    IMPORTADOS += [modulo]
+                                    KeysVars += [modulo]
 
                                 #print(SALIDA[0][0], '<- SALIDA[0][0]')
 
@@ -2384,6 +2433,10 @@ def ejecutarCodigo(LINEAS: list, fin = None, nLinea: int = 0):
                                         FUNCIONES[str(i)] = SALIDA[0][1][i]
                                         KeysVars += [str(i)]
 
+                            #print(FUNCIONES, '<- FUNCIONES')
+                            #print(KeysVars, '<- KeysVars')
+                            #print(VARIABLES, '<- VARIABLES')
+                            #print(IMPORTADOS, '<- IMPORTADOS')
 
                         case 'del':
                             clasificado = reemVariables(clasificado, LINEAS, nLinea)
@@ -2484,17 +2537,26 @@ def SugerenciasWF(palabra, diccionario, corte: int = 10):
 def comprobarIdentacion(LINEAS: list, nLinea: int) -> int:
     clasificado = clasificar(LINEAS[nLinea])
     #print(clasificado, '<- comprobarIdentacion')
-    if len(clasificado):
-        if clasificado[0][0] in aIdentar:
-            #print(clasificado, aIdentar, clasificado[0][0] in aIdentar)
-            if comprobarIdentacionAct(LINEAS, nLinea) == 1:
-                return 0 # No hay error, puesto que el nivel de aumentado va a subir
+    if clasificado:
+        iden = comprobarIdentacionAct(LINEAS, nLinea)
+        aIden = clasificado[0][0] in aIdentar
+        if iden == 1: # Aumentó
+            if aIden: # Se supone que tenia que aumentar
+                return 0
             else:
-                return 3 # Codigo de error
-        else:
-            return 0
-    else: 
-        return 0
+                return 8 # Aumentó y tenia que mantenerse igual o bajar
+        elif iden == -1: # Bajó
+            if aIden:
+                return 3
+            else:
+                return 0
+        else: # No aumentó
+            if aIden:
+                return 3
+            else: # No tenia que aumentar
+                return 0
+
+    return 0
     
 def ExisteProximaLinea(LINEAS: list, nLinea: int) -> bool:
     if nLinea + 1 < len(LINEAS):
@@ -2510,12 +2572,14 @@ def ComprobarComentarios(clasificado: list) -> int | bool:
     if bien: return 0
     else: return 6
     """
+    return 0
 def ComprobarNotacion(clasificado: list) -> int | bool:
     ...
     """
     if bien: return 0
     else return 6 
     """
+    return 0
     
 def ComprobarSintaxis(clasificado: list, Est: str | None = None) -> int | bool:
     if Est == None: # Se analiza la una linea cualquiera
@@ -2578,7 +2642,6 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
             case 1:
                 ... # Sintaxis
             case 2:
-                print(clasificado, i)
                 print(f"\"{clasificado[i][1]}\" No se encuentra definido.")
                 Mug = SugerenciasWF(clasificado[i][1], KeysVars)
                 #print(Mug)
@@ -2594,19 +2657,28 @@ def ServirErrores(ERROR: int, LINEAS: list, nLinea: int, i: int) -> bool:
 
                     case 'FUNC' | 'FUNCRETURN':
                         TipoSug = 'función'
+
+                    case 'METD':
+                        TipoSug = 'Método'
                     
                 print(f"¿Querrá escribir \"{Sug}\" ( {TipoSug} ) ? Certeza: [{CertezaSug}/10]")
 
             case 3:
-                if ERROR == 3:
-                    print(f"Se esperaba un bloque identado despues de la estructura \"{clasificado[0][1]}\".")
+                print(f"Se esperaba un bloque identado despues de la estructura \"{clasificado[0][1]}\".")
             case 4:
                 ...
             case 5:
                 ...
             case 6:
                 ...
+            case 7:
+                ...
+            case 8:
+                print(f"No se esperaba un bloque identado.")
+
         print(f'{nLinea + 1} | {LINEAS[nLinea]}')
+        if nLinea + 1 < len(LINEAS):
+            print(f'{nLinea + 2} | {LINEAS[nLinea+1]}')
         return True
     return False
 
@@ -2616,25 +2688,43 @@ def ComprobarErrores(LINEAS: list, nLinea: int = 0) -> bool:
     Al primero que vea, lo ejecuta y se cierra la función   
     """
 
+    #print(LINEAS)
+    ERROR = 0
+    nL = 0
+
+    try:
+        while LINEAS[nL] == '':
+            nL += 1
+
+        if LINEAS[nL][0] == ' ':
+            ERROR = 8
+
+    except IndexError:
+        pass
+
     while nLinea < len(LINEAS):
         clasificado = clasificar(LINEAS[nLinea])
-        ERROR = ComprobarComentarios(clasificado)
-        ERROR = ComprobarNotacion(clasificado)
-        if ERROR:
-            return ERROR
+
+        if ERROR == 0:
+            ERROR = ComprobarComentarios(clasificado)
+            ERROR = ComprobarNotacion(clasificado)
+
         clasificado = depurarComentarios(clasificado)
         clasificado = depurarNotacion(clasificado)
-        ERROR = 0
-        if ExisteProximaLinea(LINEAS, nLinea):
-            #print(nLinea, LINEAS[nLinea])
-            ERROR  = comprobarIdentacion(LINEAS, nLinea)
-            #print(ERROR, '<- comprobar Idetancion')
+
+        if ERROR == 0:
+            if ExisteProximaLinea(LINEAS, nLinea):
+                #print(nLinea, LINEAS[nLinea])
+                ERROR  = comprobarIdentacion(LINEAS, nLinea)
+                #print(ERROR, '<- comprobar Idetancion')
 
         if ERROR:
             ERROR = ServirErrores(ERROR, LINEAS, nLinea, 0)
             return ERROR
+        
         nLinea += 1
     return False
+
 
 ### EJECUCIÓN ###
 
@@ -2652,6 +2742,7 @@ def EJECUTAR(archivo):
         #print(ERROR, '<- ERROR')
 
         if not ERROR:
+            #print(CODIGO_PROCESADO)
             ejecutarCodigo(CODIGO_PROCESADO, nLinea=0)
 
         #Errores(ERRORES, CODIGO_PROCESADO)
@@ -2662,11 +2753,7 @@ def EJECUTAR(archivo):
         #print(VARIABLES)
 
 def main(archivo: __file__):
-    #try:
-        EJECUTAR(archivo)
-
-    #except FileNotFoundError:
-     #   print(f"El archivo {archivo} no se encuentra.")
+    EJECUTAR(archivo)
 
 def ejecutar_comando_terminal(comando: str):
     proceso = subprocess.run(comando, shell=True, check=False, text=True, stdout=subprocess.PIPE)
