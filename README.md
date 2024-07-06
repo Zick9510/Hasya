@@ -67,7 +67,7 @@ Variables:
         B. Se pueden reasignar los elementos de una lista aplicando el concepto anterior, agregando un igual y luego el 
             nuevo valor
         
-        C. Si, una lista puede contener listas y otros tipos de variables
+        C. Si, una lista puede contener listas y otros tipos de variables exceptuando los del tipo Intervalos, este es un error que aún trabajo en resolver :D
 
     4. V - listas:
         Las V - listas son listas que contienen variables, y al cambiar esas variables cambia el valor de las listas
