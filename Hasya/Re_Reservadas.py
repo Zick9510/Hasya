@@ -101,6 +101,7 @@ keysw = {
 
     'importar': 'import',
     'desde': 'from',
+    'como': 'as',
 
     'salir': 'break',
     'pasar': 'pass',
